@@ -1326,7 +1326,7 @@ public class Board
 
         // If it is a real move, add it to the list (to be able to do undo move)
         if (realMove)
-        {
+        { 
             this.moveList.Add(move);
             //this.visitedStates.Keys.ToList().ForEach(x => Console.Write($"{x} ")); Console.WriteLine();
         }
@@ -1387,11 +1387,13 @@ public class Board
         }
     }
 
-    public void undoMoveList()
+    public void undoMoveList(Player playerOne, Player playerTwo)
     {
-        // Reset last two moves
+        switchPlayer(playerOne, playerTwo);
         UndoMove(this.moveList[this.moveList.Count() - 1], false, false);
+        switchPlayer(playerOne, playerTwo);
         UndoMove(this.moveList[this.moveList.Count() - 2], false, false);
+
         this.moveList.RemoveAt(this.moveList.Count() - 1);
         this.moveList.RemoveAt(this.moveList.Count() - 1);
     }
@@ -1667,14 +1669,6 @@ public class Board
             this.visitedStates[hash]++;
         else
             this.visitedStates.Add(hash, 1);
-
-        //this.visitedStates.Keys.ToList().ForEach(x => Console.Write($"{x} ")); Console.WriteLine();
-        //Console.WriteLine(this.visitedStates.Values.Max());
-
-        if (this.visitedStates.Values.Max() == 3)
-        {
-            int test = 0;
-        }
     }
 
     public void removeVisitedState(ulong hash)

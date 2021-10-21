@@ -18,7 +18,7 @@ namespace World
 
         public GameLoop()
         {
-            setup();
+            setupGUI();
         }
 
         public Board getBoard()
