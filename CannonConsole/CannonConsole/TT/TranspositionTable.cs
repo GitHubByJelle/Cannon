@@ -24,11 +24,14 @@ namespace TT
 
         public void setEntry(int value, flag type, Move bestMove, int depth, ulong identification)
         {
-            this.value = value;
-            this.type = type;
-            this.bestMove = bestMove;
-            this.depth = depth;
-            this.identification = identification;
+            if (depth >= this.depth)
+            {
+                this.value = value;
+                this.type = type;
+                this.bestMove = bestMove;
+                this.depth = depth;
+                this.identification = identification;
+            }
         }
 
         public void setEntry(int value, flag type, Move bestMove, float depth, ulong identification)

@@ -1653,6 +1653,7 @@ public class Board
 
         // Get Hash
         this.currentHash = this.zH.generateBoardHash(this);
+        updateVisitedState(this.currentHash);
     }
 
     public void updateVisitedState(ulong hash)

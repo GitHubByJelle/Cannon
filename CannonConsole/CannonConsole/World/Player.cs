@@ -92,7 +92,8 @@ public class Player
     public int getBoundsEval(int[] wght)
     {
         //return 10; 
-        return Math.Abs(wght[0] * 15 + wght[1] * 15 + wght[2] * 15 + wght[3] * 1 + wght[4] * 100 + wght[5] * 15 + wght[6] * 15 + wght[7] * 15 + wght[8] * 1 + wght[9] * 70);
+        return Math.Abs(wght[0] * 15) + Math.Abs(wght[1] * 15) + Math.Abs(wght[2] * 15) + Math.Abs(wght[3] * 1) + Math.Abs(wght[4] * 100) +
+            Math.Abs(wght[5] * 15) + Math.Abs(wght[6] * 15) + Math.Abs(wght[7] * 15) + Math.Abs(wght[8] * 1) + Math.Abs(wght[9] * 70);
         return 2 * 15 + 15 + 3 * 15 + 100 * 1 + 2 * 100 - 2 * 15 - 15 - 15 - 10 * 1 + 2 * 70;
     }
 
@@ -430,8 +431,8 @@ public class Player
         features[9] = cntPossibleMoves[0] - cntPossibleMoves[1];
 
         // Feature 11 = random factor
-        features[10] = 0;
-        //features[10] = rnd.Next(-2, 2);
+        //features[10] = 0;
+        features[10] = rnd.Next(-2, 2);
 
         return features;
     }
@@ -926,12 +927,13 @@ internal class Human : Player
             {
                 // Determine the indices on the "to part"
                 Coord toIndex = nameToCoords(splitNotation[1]);
+                Console.WriteLine($"Creates coords: {toIndex}");
                 List<Move> moveList = possibleMoves.Where(x => x.type == Move.moveType.shoot &&
                                                                         x.To.x == toIndex.x &&
                                                                         x.To.y == toIndex.y).ToList();
 
-                // Return move that satisfies condition
-                if (moveList.Count() == 1)
+                // Return move that satisfies condition (if found)
+                if (moveList.Count() > 0)
                     return moveList[0];
                 else
                     return default(Move);
@@ -2912,7 +2914,7 @@ internal class RandomBot : Player
 //    {
 //        // Determine fractional ply
 //        float fracply = move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture ? .5f : 1f;
-        
+
 //        // Check if to position is town (when captured or shoot)
 //        bool isTown = false;
 //        if ((move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture) &&
@@ -3168,7 +3170,7 @@ internal class RandomBot : Player
 //                        return score;
 //                    }
 //                }
-                    
+
 //                // Multicut (if null move fails)
 //                int c = 0, m = 0;
 //                while (m < possibleMoves.Count() && m < this.M)
@@ -3564,7 +3566,7 @@ internal class RandomBot : Player
 //                        return score;
 //                    }
 //                }
-                
+
 //                // Multicut (if null move fails)
 //                int c = 0, m = 0;
 //                while (m < possibleMoves.Count() && m < this.M)
@@ -3796,451 +3798,6 @@ internal class RandomBot : Player
 //        this.TT.reset();
 //    }
 //}
-
-internal class xIterativeDeepeningFullASLast : Player
-{
-    int searchDepth;
-    int seenNodes = 0;
-    Stopwatch sw = new Stopwatch();
-    int evalBound;
-    int[] scores;
-    int maxTime;
-    bool printIterations;
-    List<Move> moves = new List<Move>();
-    int[] weights = new int[] { 2, 1, 3, 100, 2, -2, -1, -1, -10, 2, 1 };
-    TranspositionTable TT;
-    Move[] killerMoves; // depth, move
-    int[,,,] historyHeuristic = new int[Board.n, Board.n, Board.n, Board.n]; // Add 1, when pruning or actually making the move
-    int delta;
-    int R, C, M;
-    bool endGame = false;
-
-    // Basic NegaMax with alpha beta pruning and TTm Killer move and History Heuristic
-    public xIterativeDeepeningFullASLast(int id, int searchTimeMs, int lengthHashKey, int delta, int R, int C, int M, bool printIterations)
-    {
-        this.playerId = id;
-        this.maxTime = searchTimeMs;
-        this.printIterations = printIterations;
-        this.TT = new TranspositionTable(lengthHashKey);
-        this.evalBound = this.getBoundsEval(this.weights);
-        this.delta = delta;
-        this.R = R;
-        this.C = C;
-        this.M = M;
-
-
-        if (id == 1)
-        {
-            this.weights = new int[] { -6, -3, 7, 5, 4, 2, -11, -9, 5, 11, -2 };
-        }
-    }
-
-    public override void makeMove(Board B, bool print, Player playerOne, Player playerTwo)
-    {
-        // Start sw
-        sw.Restart(); sw.Start();
-
-        // Determine moves
-        this.moves = B.getPossibleMoves(this.playerId).orderByMoveType(); 
-        this.scores = new int[moves.Count()];
-
-        // Reset node counter
-        this.seenNodes = 0;
-        if (moves.Count() > 0)
-        {
-            // Initialise
-            int nrOfNodes = 0;
-            int actualDepth = 0;
-            this.seenNodes = 0;
-            this.searchDepth = 1;
-            this.scores = new int[this.moves.Count()];
-            Move bestMove = moves[0];
-            int guess = 0;
-
-            while (this.sw.ElapsedMilliseconds < this.maxTime && this.scores.Max() < this.evalBound && this.scores.Max() > -this.evalBound)
-            {
-                // Order this.moves
-                this.moves = orderMovesScore(this.moves, this.scores);
-
-                // Reset scores and killermoves
-                this.scores.setAll(-this.evalBound);
-                this.killerMoves = new Move[2 * searchDepth];
-
-                // Determine Alpha and Beta
-                int alpha = guess - this.delta; int beta = guess + this.delta;
-
-                // Determine scores
-                //Console.WriteLine(B.getCurrentHash());
-                int score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
-
-                if (score >= beta)
-                {
-                    this.scores.setAll(-this.evalBound);
-                    alpha = score; beta = this.evalBound;
-                    score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
-                }
-                else if (score <= alpha)
-                {
-                    this.scores.setAll(-this.evalBound);
-                    alpha = -this.evalBound; beta = score;
-                    score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
-                }
-
-                //Console.WriteLine(B.getCurrentHash());
-
-                guess = score;
-
-                // Replace the oldScores with new scores (if enough time is left, otherewise score isn't complete)
-                if (this.sw.ElapsedMilliseconds < this.maxTime)
-                {
-                    bestMove = this.moves[this.scores.argMax()];
-                    actualDepth = this.searchDepth;
-                    nrOfNodes = this.seenNodes;
-
-                    // Print time per iteration
-                    if (this.printIterations)
-                    {
-                        // Print performance
-                        Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
-                    }
-                }
-                else
-                {
-                    int bestVal = this.scores[0];
-                    int i = 1;
-
-                    while (i + 1 < this.scores.Length && this.scores[i + 1] > -this.evalBound)
-                    {
-                        if (this.scores[i] > bestVal)
-                        {
-                            bestMove = this.moves[i];
-                            actualDepth = this.searchDepth;
-                            nrOfNodes = this.seenNodes;
-                        }
-
-                        i++;
-                    }
-                }
-
-                // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
-                this.searchDepth++;
-                B.updateCannons();
-            }
-
-            // Stop stopwatch
-            sw.Stop();
-
-            //Print nodes evaluated
-            if (printIterations)
-                Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
-
-            // Make best move, update HH and currenthash
-            this.historyHeuristic[bestMove.From.x, bestMove.From.y, bestMove.To.x, bestMove.To.y]++;
-            this.historyHeuristic.multiplyDiscount();
-            //B.setCurrentHash(this.zH.makeMoveHash(this.currentHash, bestMove, this.playerId, false));
-            B.movePiece(bestMove, print, false, true, false);
-
-            if (!this.endGame && countMinTotalPieces(B) < 8)
-            {
-                this.endGame = true;
-            }
-        }
-        else
-        {
-            this.NoLegalMoves();
-        }
-    }
-
-    int NegaMaxAlphaBetaSearch(Board B, float depth, int Alpha, int Beta, Player playerOne, Player playerTwo, int color, bool placeTown, bool lastNullMove)
-    {
-        this.seenNodes++; 
-        // Transposition Table look up
-        int olda = Alpha;
-        TTEntry entry = this.TT.retrieve(B.getCurrentHashKey(), B.getCurrentHashValue());
-        // If position is new, depth = -1 (initial value of TTEntry)
-        if (entry.depth >= depth && depth >= 0)
-        {
-            if (entry.type == TTEntry.flag.exact)
-                return entry.value;
-            else if (entry.type == TTEntry.flag.lowerBound)
-                Alpha = Math.Max(Alpha, entry.value);
-            else if (entry.type == TTEntry.flag.upperBound)
-                Beta = Math.Min(Beta, entry.value);
-            if (Alpha >= Beta)
-                return entry.value;
-        }
-
-        if (!placeTown && !B.TownsInGame()) { return B.TownInGame(this.playerId) ? this.evalBound * color : -this.evalBound * color; }
-        if (B.getMaxFolds() == 3) { 
-            return (-this.evalBound + 1) * color; }
-        if (depth <= 0) { return this.Evaluate(B, this.weights) * color; }
-
-        int currentPlayerId = B.getCurrentPlayer().getPlayerId();
-
-        // Ordering moves correctly
-        List<Move> possibleMoves;
-        if (depth == this.searchDepth)
-            possibleMoves = this.moves;
-        else
-            possibleMoves = orderMovesVD(B.getPossibleMoves(currentPlayerId), entry.bestMove, this.killerMoves, depth, this.historyHeuristic);
-
-        int value = -this.evalBound - 1;
-        int bestValue = value;
-        int bestValueIndex = -1;
-
-        if (possibleMoves.Count() > 0)
-        {
-            // Null Move
-            if (depth != this.searchDepth && depth > 0 && !this.endGame && !placeTown)
-            {
-                if (!lastNullMove)
-                {
-                    B.switchPlayer(playerOne, playerTwo);
-                    int score = -NegaMaxAlphaBetaSearch(B, depth - 1 - this.R, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, true);
-                    B.switchPlayer(playerOne, playerTwo);
-
-                    if (score > Beta)
-                    {
-                        return score;
-                    }
-                }
-                
-
-                // Multicut (if null move fails)
-                int c = 0, m = 0;
-                while (m < possibleMoves.Count() && m < this.M)
-                {
-                    value = -simulateMove(B, possibleMoves[m], depth - 1 - this.R, Alpha, Beta, currentPlayerId, playerOne, playerTwo, color * -1, false);
-
-                    if (value >= Beta)
-                    {
-                        c++;
-                        if (c > this.C)
-                        {
-                            return Beta;
-                        }
-                    }
-
-                    m++;
-                }
-            }
-
-
-            for (int i = 0; i < possibleMoves.Count(); i++)
-            {
-                // Determine value
-                //Console.WriteLine(B.getCurrentHash());
-                value = simulateMove(B, possibleMoves[i], depth, Alpha, Beta, currentPlayerId, playerOne, playerTwo, color, placeTown);
-                //Console.WriteLine(B.getCurrentHash());
-
-                // If it is at our search depth, and isn't during placement, add score to list
-                if (!placeTown && depth == this.searchDepth)
-                {
-                    this.scores[i] = value;
-                }
-
-                // Check if value is higher
-                if (value > bestValue)
-                {
-                    bestValue = value;
-                    bestValueIndex = i;
-
-                    // Check if it is higher than Alpha
-                    if (bestValue > Alpha)
-                    {
-                        Alpha = bestValue;
-
-                        // Check if Alpha >= Beta, such that we can prune
-                        if (Alpha >= Beta)
-                        {
-                            this.killerMoves[(int)(2 * depth - 1)] = possibleMoves[i];
-                            this.historyHeuristic[possibleMoves[i].From.x, possibleMoves[i].From.y, possibleMoves[i].To.x, possibleMoves[i].To.y]++;
-                            break;
-                        }
-                    }
-                }
-
-                if (this.sw.ElapsedMilliseconds > this.maxTime)
-                    break;
-            }
-
-            // Store entry in TT
-            TTEntry.flag flagType;
-            if (bestValue <= olda) { flagType = TTEntry.flag.upperBound; }
-            else if (bestValue >= Beta) { flagType = TTEntry.flag.lowerBound; }
-            else { flagType = TTEntry.flag.exact; }
-
-            // Set entry
-            this.TT.setEntry(B.getCurrentHashKey(), bestValue, flagType, possibleMoves[bestValueIndex],
-                depth, B.getCurrentHashValue());
-
-            return bestValue;
-        }
-        else
-        {
-            return -this.evalBound; // No color, looking from current perspective
-        }
-    }
-
-    public override void placeTown(Board B, bool print, Player playerOne, Player playerTwo)
-    {
-        // Start sw
-        sw.Restart(); sw.Start();
-
-        // Get placements
-        List<Coord> placements = B.getPossiblePlacements(B.getCurrentPlayer().getPlayerId());
-
-        // Initialise
-        int nrOfNodes = 0;
-        int actualDepth = 0;
-        this.seenNodes = 0;
-        this.searchDepth = 1;
-        int[] scores = new int[placements.Count()];
-        Coord bestPlacement = placements[0];
-        int guess = 0;
-
-        while (this.sw.ElapsedMilliseconds < this.maxTime && scores.Max() < this.evalBound && scores.Max() > -this.evalBound)
-        {
-            // Order placements
-            placements = orderPlacements(placements, scores);
-
-            // Reset scores and killermoves
-            scores.setAll(-this.evalBound);
-            this.killerMoves = new Move[2 * searchDepth];
-
-            // Determine alpha and gamma
-            int alpha = guess - this.delta; int beta = guess + this.delta;
-
-            // Determine scores
-            //Console.WriteLine(B.getCurrentHash());
-            scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
-
-            // readjust window
-            if (scores.Max() >= beta)
-            {
-                alpha = scores.Max(); beta = this.evalBound;
-                scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
-            }
-            else if (scores.Max() <= alpha)
-            {
-                alpha = -this.evalBound; beta = scores.Max();
-                scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
-            }
-
-            //Console.WriteLine(B.getCurrentHash());
-            guess = scores.Max();
-
-            // Print time per iteration
-            if (this.printIterations)
-            {
-                // Print performance
-                Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
-            }
-
-            // Get best placement (if enough time is left, otherewise score isn't complete)
-            if (this.sw.ElapsedMilliseconds < this.maxTime)
-            {
-                bestPlacement = placements[scores.argMax()];
-                actualDepth = searchDepth;
-                nrOfNodes = this.seenNodes;
-            }
-
-            // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
-            this.searchDepth++;
-            B.updateCannons();
-        }
-
-        // Stop stopwatch
-        this.sw.Stop();
-
-        //Print nodes evaluated
-        if (printIterations)
-            Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
-
-        // Make best move
-        B.placeTown(bestPlacement, print);
-    }
-
-    int simulateMove(Board B, Move move, float depth, int Alpha, int Beta, int currentPlayerId, Player playerOne, Player playerTwo, int color, bool placeTown)
-    {
-        // Determine fractional ply
-        float fracply = move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture ? .5f : 1f;
-
-        // Check if to position is town (when captured or shoot)
-        bool isTown = false;
-        if ((move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture) &&
-            B.getSpaces()[move.To.x, move.To.y].getPieceType() == Piece.epieceType.town)
-            isTown = true;
-
-        // Make Move (and update hash)
-        B.movePiece(move, false, placeTown, false, isTown);
-
-        // Update Cannons
-        B.updateCannons();
-
-        // Switch player
-        B.switchPlayer(playerOne, playerTwo);
-
-        // Get value
-        int value = -NegaMaxAlphaBetaSearch(B, depth - fracply, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, false);
-
-        // Switch player
-        B.switchPlayer(playerOne, playerTwo);
-
-        // Undo Move        
-        B.UndoMove(move, placeTown, isTown);
-
-        return value;
-    }
-
-    int[] simulatePlacements(Board B, List<Coord> placements, int alpha, int beta, Player playerOne, Player playerTwo)
-    {
-        int[] scores = new int[placements.Count()];
-        for (int i = 0; i < placements.Count(); i++)
-        {
-            B.placeTown(placements[i], false);
-
-            // Update cannons
-            B.updateCannons();
-
-            // switch player
-            B.switchPlayer(playerOne, playerTwo);
-
-            scores[i] = -NegaMaxAlphaBetaSearch(B, this.searchDepth - 1, alpha, beta, playerOne, playerTwo, -1, true, false);
-
-            B.switchPlayer(playerOne, playerTwo);
-
-            B.removeTown(placements[i]);
-        }
-
-        return scores;
-    }
-
-    int countMinTotalPieces(Board B)
-    {
-        int[] count = new int[2];
-
-        // Count number of 
-        for (int i = 0; i < B.getPiecesCoords().Count(); i++)
-        {
-            count[B.getSpaces()[B.getPiecesCoords()[i].x, B.getPiecesCoords()[i].y].getPieceId() - 1]++;
-        }
-
-        return count.Min();
-    }
-
-    public override void resetTT()
-    {
-        this.TT.reset();
-    }
-
-    public override void setWeights(int[] wghts)
-    {
-        this.weights = wghts;
-        this.evalBound = getBoundsEval(wghts);
-    }
-}
-
 //internal class xIterativeDeepeningFullNSLast : Player
 //{
 //    int searchDepth;
@@ -4332,7 +3889,7 @@ internal class xIterativeDeepeningFullASLast : Player
 //                            actualDepth = this.searchDepth;
 //                            nrOfNodes = this.seenNodes;
 //                        }
-                        
+
 //                        i++;
 //                    }
 //                }
@@ -4416,7 +3973,7 @@ internal class xIterativeDeepeningFullASLast : Player
 //                        return score;
 //                    }
 //                }
-                
+
 
 //                // Multicut (if null move fails)
 //                int c = 0, m = 0;
@@ -5471,42 +5028,3128 @@ internal class xIterativeDeepeningFullASLast : Player
 
 // Corrected (alpha beta - color, etc)
 
-internal class Template : Player
+/// Attempt 4
+// Aspirations search with all optimizations (Iterative Deepening, TT, KM, Knowledge, HH, Fractional Plies, Null Move, MultiCut) 
+internal class OptimizedAS: Player
 {
-        
-    public Template(int id)
+    // Initiliaze everything needed
+    // General (Iterative Deepening)
+    int searchDepth;
+    int seenNodes = 0;
+    Stopwatch sw = new Stopwatch();
+    int evalBound;
+    int[] scores;
+    int maxTime;
+    bool printIterations;
+    List<Move> moves = new List<Move>();
+    int[] weights = new int[] { 2, 1, 3, 100, 2, -2, -1, -1, -10, 2, 1 };
+
+    // Move ordering
+    TranspositionTable TT;
+    Move[] killerMoves; // depth, move
+    int[,,,] historyHeuristic = new int[Board.n, Board.n, Board.n, Board.n]; // Add 1, when pruning or actually making the move
+    
+    // Window
+    int delta;
+
+    // Dynamic depth
+    int R, C, M;
+    bool endGame = false;
+
+    public OptimizedAS(int id, int searchTimeMs, int lengthHashKey, int delta, int R, int C, int M, bool printIterations)
     {
+        // Initiliase
+        // General (Iterative Deepening)
         this.playerId = id;
+        this.maxTime = searchTimeMs;
+        this.printIterations = printIterations;
+        this.evalBound = this.getBoundsEval(this.weights);
+
+        // TT
+        this.TT = new TranspositionTable(lengthHashKey);
+
+        // Search Windows
+        this.delta = delta;
+
+        // Null Move and Multi-Cut
+        this.R = R;
+        this.C = C;
+        this.M = M;
     }
 
     public override void makeMove(Board B, bool print, Player playerOne, Player playerTwo)
     {
-        List<Move> moves = new List<Move>();
+        // Start Stopwatch
+        sw.Restart(); sw.Start();
 
-        // If legal moves continue game
+        // Determine moves and order on knowledge
+        this.moves = B.getPossibleMoves(this.playerId).orderByMoveType(); 
+        this.scores = new int[moves.Count()];
+
+        // Reset node counter
+        this.seenNodes = 0;
+        // If there are moves left
         if (moves.Count() > 0)
         {
-            // Determine best move
-            //Move move = moves[rnd.Next(moves.Count())];
+            // Initialise
+            int nrOfNodes = 0;
+            int actualDepth = 0;
+            this.seenNodes = 0;
+            this.searchDepth = 1;
+            this.scores = new int[this.moves.Count()];
+            Move bestMove = moves[0];
+            int guess = 0;
 
-            // Make move
-            //B.movePiece(move, print, placeTown);
+            // While time left
+            while (this.sw.ElapsedMilliseconds < this.maxTime && this.scores.Max() < this.evalBound && this.scores.Max() > -this.evalBound)
+            {
+                // Order this.moves on scores of previous search
+                this.moves = orderMovesScore(this.moves, this.scores);
+
+                // Reset scores and killermoves
+                this.scores.setAll(-this.evalBound);
+                this.killerMoves = new Move[2 * searchDepth];
+
+                // Determine Alpha and Beta (AS)
+                int alpha = guess - this.delta; int beta = guess + this.delta;
+
+                // Determine scores (NegaMax)
+                int score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
+
+                // Fail high - research
+                if (score >= beta)
+                {
+                    this.scores.setAll(-this.evalBound);
+                    alpha = score; beta = this.evalBound;
+                    score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
+                }
+                // Fail low - research
+                else if (score <= alpha)
+                {
+                    this.scores.setAll(-this.evalBound);
+                    alpha = -this.evalBound; beta = score;
+                    score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
+                }
+
+                // Change guess
+                guess = score;
+
+                // Replace the oldScores with new scores (if enough time is left, otherwise score isn't complete -> needs complicated look at)
+                if (this.sw.ElapsedMilliseconds < this.maxTime)
+                {
+                    bestMove = this.moves[this.scores.argMax()];
+                    actualDepth = this.searchDepth;
+                    nrOfNodes = this.seenNodes;
+
+                    // Print time per iteration
+                    if (this.printIterations)
+                    {
+                        // Print performance
+                        Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+                    }
+                }
+                else
+                {
+                    // If it isn't entireyly searched
+                    // Check the value we would get for choosing the first one
+                    int bestVal = this.scores[0];
+                    int i = 1;
+
+                    // If this one is searched entirely (next one is not equal to -this.evalBound)
+                    // Check if this is better than the move we choose to make (at the previous depth)
+                    while (i + 1 < this.scores.Length && this.scores[i + 1] > -this.evalBound)
+                    {
+                        // If it is better, save it
+                        if (this.scores[i] > bestVal)
+                        {
+                            bestMove = this.moves[i];
+                            actualDepth = this.searchDepth;
+                            nrOfNodes = this.seenNodes;
+                        }
+
+                        i++;
+                    }
+                }
+
+                // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+                this.searchDepth++;
+                B.updateCannons();
+            }
+
+            // Stop stopwatch
+            sw.Stop();
+
+            //Print nodes evaluated
+            if (printIterations)
+                Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+            // Make best move, update HH
+            this.historyHeuristic.multiplyDiscount();
+            B.movePiece(bestMove, print, false, true, false);
+
+            // Check if it is the end game, if so add it (for forward prunings)
+            if (!this.endGame && countMinTotalPieces(B) < 8)
+            {
+                this.endGame = true;
+            }
         }
-        // Else set no legal moves
+        // No legal moves is loss.
         else
+        {
             this.NoLegalMoves();
+        }
+    }
 
+    int NegaMaxAlphaBetaSearch(Board B, float depth, int Alpha, int Beta, Player playerOne, Player playerTwo, int color, bool placeTown, bool lastNullMove)
+    {
+        // Keep track of number of nodes seen
+        this.seenNodes++; 
+
+        // Transposition Table look up
+        int olda = Alpha;
+        TTEntry entry = this.TT.retrieve(B.getCurrentHashKey(), B.getCurrentHashValue());
+        // If position is new, depth = -1 (initial value of TTEntry)
+        if (entry.depth >= depth && depth >= 0)
+        {
+            if (entry.type == TTEntry.flag.exact)
+                return entry.value;
+            else if (entry.type == TTEntry.flag.lowerBound)
+                Alpha = Math.Max(Alpha, entry.value);
+            else if (entry.type == TTEntry.flag.upperBound)
+                Beta = Math.Min(Beta, entry.value);
+            if (Alpha >= Beta)
+                return entry.value;
+        }
+
+        // If town is removes -> win (terminal)
+        if (!placeTown && !B.TownsInGame()) { return B.TownInGame(this.playerId) ? this.evalBound * color : -this.evalBound * color; }
+        // If threefold -> draw (terminal)
+        if (B.getMaxFolds() == 3) { return (-this.evalBound + 1) * color; }
+        // If leafnode , return evaluate
+        if (depth <= 0) { return this.Evaluate(B, this.weights) * color; }
+
+        // Get currentId
+        int currentPlayerId = B.getCurrentPlayer().getPlayerId();
+
+        // Ordering moves correctly
+        List<Move> possibleMoves;
+        if (depth == this.searchDepth)
+            possibleMoves = this.moves;
+        else
+            possibleMoves = orderMovesVD(B.getPossibleMoves(currentPlayerId), entry.bestMove, this.killerMoves, depth, this.historyHeuristic);
+
+        // Initialise for search
+        int value = -this.evalBound - 1;
+        int bestValue = value;
+        int bestValueIndex = -1;
+
+        // If moves left
+        if (possibleMoves.Count() > 0)
+        {
+            // Forward pruning
+            if (depth != this.searchDepth && depth > 0 && !this.endGame && !placeTown)
+            {
+                // Null Move
+                if (!lastNullMove)
+                {
+                    B.switchPlayer(playerOne, playerTwo);
+                    int score = -NegaMaxAlphaBetaSearch(B, depth - 1 - this.R, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, true);
+                    B.switchPlayer(playerOne, playerTwo);
+
+                    if (score > Beta)
+                    {
+                        return score;
+                    }
+                }
+                
+
+                // Multicut (if null move fails)
+                int c = 0, m = 0;
+                while (m < possibleMoves.Count() && m < this.M)
+                {
+                    value = -simulateMove(B, possibleMoves[m], depth - 1 - this.R, Alpha, Beta, currentPlayerId, playerOne, playerTwo, color * -1, false);
+
+                    if (value >= Beta)
+                    {
+                        c++;
+                        if (c > this.C)
+                        {
+                            return Beta;
+                        }
+                    }
+
+                    m++;
+                }
+            }
+
+            // Look at all moves
+            for (int i = 0; i < possibleMoves.Count(); i++)
+            {
+                // Determine value
+                value = simulateMove(B, possibleMoves[i], depth, Alpha, Beta, currentPlayerId, playerOne, playerTwo, color, placeTown);
+
+                // If it is at our search depth, and isn't during placement, add score to list
+                if (!placeTown && depth == this.searchDepth)
+                {
+                    this.scores[i] = value;
+                }
+
+                // Check if value is higher (better move)
+                if (value > bestValue)
+                {
+                    bestValue = value;
+                    bestValueIndex = i;
+
+                    // Check if it is higher than Alpha
+                    if (bestValue > Alpha)
+                    {
+                        Alpha = bestValue;
+
+                        // Check if Alpha >= Beta, such that we can prune
+                        if (Alpha >= Beta)
+                        {
+                            // Save to killermove and history heuristic
+                            this.killerMoves[(int)(2 * depth - 1)] = possibleMoves[i];
+                            if (possibleMoves[i].type != Move.moveType.shoot || possibleMoves[i].type != Move.moveType.soldierCapture)
+                                this.historyHeuristic[possibleMoves[i].From.x, possibleMoves[i].From.y, possibleMoves[i].To.x, possibleMoves[i].To.y]++;
+                            break;
+                        }
+                    }
+                }
+
+                // If no time less, break
+                if (this.sw.ElapsedMilliseconds > this.maxTime)
+                    break;
+            }
+
+            // Store entry in TT
+            TTEntry.flag flagType;
+            if (bestValue <= olda) { flagType = TTEntry.flag.upperBound; }
+            else if (bestValue >= Beta) { flagType = TTEntry.flag.lowerBound; }
+            else { flagType = TTEntry.flag.exact; }
+
+            // Set entry
+            this.TT.setEntry(B.getCurrentHashKey(), bestValue, flagType, possibleMoves[bestValueIndex],
+                depth, B.getCurrentHashValue());
+
+            // Return value
+            return bestValue;
+        }
+        else
+        {
+            // No move left is loss
+            return -this.evalBound; // No color, looking from current perspective
+        }
     }
 
     public override void placeTown(Board B, bool print, Player playerOne, Player playerTwo)
     {
+        // Start sw
+        sw.Restart(); sw.Start();
+
         // Get placements
         List<Coord> placements = B.getPossiblePlacements(B.getCurrentPlayer().getPlayerId());
 
-        // Determine placement
-        //int[] placement = placements[rnd.Next(placements.Count())];
+        // Initialise
+        int nrOfNodes = 0;
+        int actualDepth = 0;
+        this.seenNodes = 0;
+        this.searchDepth = 1;
+        int[] scores = new int[placements.Count()];
+        Coord bestPlacement = placements[0];
+        int guess = 0;
 
-        // Place town
-        //B.placeTown(placement, print);
+        while (this.sw.ElapsedMilliseconds < this.maxTime && scores.Max() < this.evalBound && scores.Max() > -this.evalBound)
+        {
+            // Order placements
+            placements = orderPlacements(placements, scores);
+
+            // Reset scores and killermoves
+            scores.setAll(-this.evalBound);
+            this.killerMoves = new Move[2 * searchDepth];
+
+            // Determine alpha and gamma
+            int alpha = guess - this.delta; int beta = guess + this.delta;
+
+            // Determine scores
+            scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
+
+            // Fail high - research
+            if (scores.Max() >= beta)
+            {
+                alpha = scores.Max(); beta = this.evalBound;
+                scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
+            }
+            // Fail low - research
+            else if (scores.Max() <= alpha)
+            {
+                alpha = -this.evalBound; beta = scores.Max();
+                scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
+            }
+
+            // Change guess
+            guess = scores.Max();
+
+            // Print time per iteration
+            if (this.printIterations)
+            {
+                // Print performance
+                Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+            }
+
+            // Get best placement (if enough time is left, otherewise score isn't complete)
+            if (this.sw.ElapsedMilliseconds < this.maxTime)
+            {
+                bestPlacement = placements[scores.argMax()];
+                actualDepth = searchDepth;
+                nrOfNodes = this.seenNodes;
+            }
+
+            // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+            this.searchDepth++;
+            B.updateCannons();
+        }
+
+        // Stop stopwatch
+        this.sw.Stop();
+
+        // Print nodes evaluated
+        if (printIterations)
+            Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+        // Make best move
+        B.placeTown(bestPlacement, print);
+    }
+
+    int simulateMove(Board B, Move move, float depth, int Alpha, int Beta, int currentPlayerId, Player playerOne, Player playerTwo, int color, bool placeTown)
+    {
+        // Determine fractional ply
+        float fracply = move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture ? .5f : 1f;
+
+        // Check if to position is town (when captured or shoot)
+        bool isTown = false;
+        if ((move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture) &&
+            B.getSpaces()[move.To.x, move.To.y].getPieceType() == Piece.epieceType.town)
+            isTown = true;
+
+        // Make Move (and update hash)
+        B.movePiece(move, false, placeTown, false, isTown);
+
+        // Update Cannons
+        B.updateCannons();
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Get value
+        int value = -NegaMaxAlphaBetaSearch(B, depth - fracply, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, false);
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Undo Move        
+        B.UndoMove(move, placeTown, isTown);
+
+        return value;
+    }
+
+    int[] simulatePlacements(Board B, List<Coord> placements, int alpha, int beta, Player playerOne, Player playerTwo)
+    {
+        int[] scores = new int[placements.Count()];
+        for (int i = 0; i < placements.Count(); i++)
+        {
+            // Place town
+            B.placeTown(placements[i], false);
+
+            // Update cannons
+            B.updateCannons();
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Determine scores
+            scores[i] = -NegaMaxAlphaBetaSearch(B, this.searchDepth - 1, alpha, beta, playerOne, playerTwo, -1, true, false);
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Remove town
+            B.removeTown(placements[i]);
+        }
+
+        // Return scores of placements
+        return scores;
+    }
+
+    int countMinTotalPieces(Board B)
+    {
+        // Min numer of pieces
+        int[] count = new int[2];
+
+        // Count number of 
+        for (int i = 0; i < B.getPiecesCoords().Count(); i++)
+        {
+            count[B.getSpaces()[B.getPiecesCoords()[i].x, B.getPiecesCoords()[i].y].getPieceId() - 1]++;
+        }
+
+        return count.Min();
+    }
+
+    // Reset TT
+    public override void resetTT()
+    {
+        this.TT.reset();
+    }
+
+    // Set weights (for GA)
+    public override void setWeights(int[] wghts)
+    {
+        this.weights = wghts;
+        this.evalBound = getBoundsEval(wghts);
+    }
+}
+
+// Aspirations search with variable depth (Iterative Deepening, TT, KM, Knowledge, HH, Fractional Plies, Null Move) 
+internal class AS_FP_NL : Player
+{
+    // Initiliaze everything needed
+    // General (Iterative Deepening)
+    int searchDepth;
+    int seenNodes = 0;
+    Stopwatch sw = new Stopwatch();
+    int evalBound;
+    int[] scores;
+    int maxTime;
+    bool printIterations;
+    List<Move> moves = new List<Move>();
+    int[] weights = new int[] { 2, 1, 3, 100, 2, -2, -1, -1, -10, 2, 1 };
+
+    // Move ordering
+    TranspositionTable TT;
+    Move[] killerMoves; // depth, move
+    int[,,,] historyHeuristic = new int[Board.n, Board.n, Board.n, Board.n]; // Add 1, when pruning or actually making the move
+
+    // Window
+    int delta;
+
+    // Dynamic depth
+    int R;
+    bool endGame = false;
+
+    public AS_FP_NL(int id, int searchTimeMs, int lengthHashKey, int delta, int R, bool printIterations)
+    {
+        // Initiliase
+        // General (Iterative Deepening)
+        this.playerId = id;
+        this.maxTime = searchTimeMs;
+        this.printIterations = printIterations;
+        this.evalBound = this.getBoundsEval(this.weights);
+
+        // TT
+        this.TT = new TranspositionTable(lengthHashKey);
+
+        // Search Windows
+        this.delta = delta;
+
+        // Null Move
+        this.R = R;
+    }
+
+    public override void makeMove(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start Stopwatch
+        sw.Restart(); sw.Start();
+
+        // Determine moves and order on knowledge
+        this.moves = B.getPossibleMoves(this.playerId).orderByMoveType();
+        this.scores = new int[moves.Count()];
+
+        // Reset node counter
+        this.seenNodes = 0;
+        // If there are moves left
+        if (moves.Count() > 0)
+        {
+            // Initialise
+            int nrOfNodes = 0;
+            int actualDepth = 0;
+            this.seenNodes = 0;
+            this.searchDepth = 1;
+            this.scores = new int[this.moves.Count()];
+            Move bestMove = moves[0];
+            int guess = 0;
+
+            // While time left
+            while (this.sw.ElapsedMilliseconds < this.maxTime && this.scores.Max() < this.evalBound && this.scores.Max() > -this.evalBound)
+            {
+                // Order this.moves on scores of previous search
+                this.moves = orderMovesScore(this.moves, this.scores);
+
+                // Reset scores and killermoves
+                this.scores.setAll(-this.evalBound);
+                this.killerMoves = new Move[2 * searchDepth];
+
+                // Determine Alpha and Beta (AS)
+                int alpha = guess - this.delta; int beta = guess + this.delta;
+
+                // Determine scores (NegaMax)
+                int score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
+
+                // Fail high - research
+                if (score >= beta)
+                {
+                    this.scores.setAll(-this.evalBound);
+                    alpha = score; beta = this.evalBound;
+                    score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
+                }
+                // Fail low - research
+                else if (score <= alpha)
+                {
+                    this.scores.setAll(-this.evalBound);
+                    alpha = -this.evalBound; beta = score;
+                    score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
+                }
+
+                // Change guess
+                guess = score;
+
+                // Replace the oldScores with new scores (if enough time is left, otherwise score isn't complete -> needs complicated look at)
+                if (this.sw.ElapsedMilliseconds < this.maxTime)
+                {
+                    bestMove = this.moves[this.scores.argMax()];
+                    actualDepth = this.searchDepth;
+                    nrOfNodes = this.seenNodes;
+
+                    // Print time per iteration
+                    if (this.printIterations)
+                    {
+                        // Print performance
+                        Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+                    }
+                }
+                else
+                {
+                    // If it isn't entireyly searched
+                    // Check the value we would get for choosing the first one
+                    int bestVal = this.scores[0];
+                    int i = 1;
+
+                    // If this one is searched entirely (next one is not equal to -this.evalBound)
+                    // Check if this is better than the move we choose to make (at the previous depth)
+                    while (i + 1 < this.scores.Length && this.scores[i + 1] > -this.evalBound)
+                    {
+                        // If it is better, save it
+                        if (this.scores[i] > bestVal)
+                        {
+                            bestMove = this.moves[i];
+                            actualDepth = this.searchDepth;
+                            nrOfNodes = this.seenNodes;
+                        }
+
+                        i++;
+                    }
+                }
+
+                // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+                this.searchDepth++;
+                B.updateCannons();
+            }
+
+            // Stop stopwatch
+            sw.Stop();
+
+            //Print nodes evaluated
+            if (printIterations)
+                Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+            // Make best move, update HH
+            this.historyHeuristic.multiplyDiscount();
+            B.movePiece(bestMove, print, false, true, false);
+
+            // Check if it is the end game, if so add it (for forward prunings)
+            if (!this.endGame && countMinTotalPieces(B) < 8)
+            {
+                this.endGame = true;
+            }
+        }
+        // No legal moves is loss.
+        else
+        {
+            this.NoLegalMoves();
+        }
+    }
+
+    int NegaMaxAlphaBetaSearch(Board B, float depth, int Alpha, int Beta, Player playerOne, Player playerTwo, int color, bool placeTown, bool lastNullMove)
+    {
+        // Keep track of number of nodes seen
+        this.seenNodes++;
+
+        // Transposition Table look up
+        int olda = Alpha;
+        TTEntry entry = this.TT.retrieve(B.getCurrentHashKey(), B.getCurrentHashValue());
+        // If position is new, depth = -1 (initial value of TTEntry)
+        if (entry.depth >= depth && depth >= 0)
+        {
+            if (entry.type == TTEntry.flag.exact)
+                return entry.value;
+            else if (entry.type == TTEntry.flag.lowerBound)
+                Alpha = Math.Max(Alpha, entry.value);
+            else if (entry.type == TTEntry.flag.upperBound)
+                Beta = Math.Min(Beta, entry.value);
+            if (Alpha >= Beta)
+                return entry.value;
+        }
+
+        // If town is removes -> win (terminal)
+        if (!placeTown && !B.TownsInGame()) { return B.TownInGame(this.playerId) ? this.evalBound * color : -this.evalBound * color; }
+        // If threefold -> draw (terminal)
+        if (B.getMaxFolds() == 3) { return (-this.evalBound + 1) * color; }
+        // If leafnode , return evaluate
+        if (depth <= 0) { return this.Evaluate(B, this.weights) * color; }
+
+        // Get currentId
+        int currentPlayerId = B.getCurrentPlayer().getPlayerId();
+
+        // Ordering moves correctly
+        List<Move> possibleMoves;
+        if (depth == this.searchDepth)
+            possibleMoves = this.moves;
+        else
+            possibleMoves = orderMovesVD(B.getPossibleMoves(currentPlayerId), entry.bestMove, this.killerMoves, depth, this.historyHeuristic);
+
+        // Initialise for search
+        int value = -this.evalBound - 1;
+        int bestValue = value;
+        int bestValueIndex = -1;
+
+        // If moves left
+        if (possibleMoves.Count() > 0)
+        {
+            // Forward pruning
+            if (depth != this.searchDepth && depth > 0 && !this.endGame && !placeTown)
+            {
+                // Null Move
+                if (!lastNullMove)
+                {
+                    B.switchPlayer(playerOne, playerTwo);
+                    int score = -NegaMaxAlphaBetaSearch(B, depth - 1 - this.R, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, true);
+                    B.switchPlayer(playerOne, playerTwo);
+
+                    if (score > Beta)
+                    {
+                        return score;
+                    }
+                }
+            }
+
+            // Look at all moves
+            for (int i = 0; i < possibleMoves.Count(); i++)
+            {
+                // Determine value
+                value = simulateMove(B, possibleMoves[i], depth, Alpha, Beta, currentPlayerId, playerOne, playerTwo, color, placeTown);
+
+                // If it is at our search depth, and isn't during placement, add score to list
+                if (!placeTown && depth == this.searchDepth)
+                {
+                    this.scores[i] = value;
+                }
+
+                // Check if value is higher (better move)
+                if (value > bestValue)
+                {
+                    bestValue = value;
+                    bestValueIndex = i;
+
+                    // Check if it is higher than Alpha
+                    if (bestValue > Alpha)
+                    {
+                        Alpha = bestValue;
+
+                        // Check if Alpha >= Beta, such that we can prune
+                        if (Alpha >= Beta)
+                        {
+                            // Save to killermove and history heuristic
+                            this.killerMoves[(int)(2 * depth - 1)] = possibleMoves[i];
+                            if (possibleMoves[i].type != Move.moveType.shoot || possibleMoves[i].type != Move.moveType.soldierCapture)
+                                this.historyHeuristic[possibleMoves[i].From.x, possibleMoves[i].From.y, possibleMoves[i].To.x, possibleMoves[i].To.y]++;
+                            break;
+                        }
+                    }
+                }
+
+                // If no time less, break
+                if (this.sw.ElapsedMilliseconds > this.maxTime)
+                    break;
+            }
+
+            // Store entry in TT
+            TTEntry.flag flagType;
+            if (bestValue <= olda) { flagType = TTEntry.flag.upperBound; }
+            else if (bestValue >= Beta) { flagType = TTEntry.flag.lowerBound; }
+            else { flagType = TTEntry.flag.exact; }
+
+            // Set entry
+            this.TT.setEntry(B.getCurrentHashKey(), bestValue, flagType, possibleMoves[bestValueIndex],
+                depth, B.getCurrentHashValue());
+
+            // Return value
+            return bestValue;
+        }
+        else
+        {
+            // No move left is loss
+            return -this.evalBound; // No color, looking from current perspective
+        }
+    }
+
+    public override void placeTown(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start sw
+        sw.Restart(); sw.Start();
+
+        // Get placements
+        List<Coord> placements = B.getPossiblePlacements(B.getCurrentPlayer().getPlayerId());
+
+        // Initialise
+        int nrOfNodes = 0;
+        int actualDepth = 0;
+        this.seenNodes = 0;
+        this.searchDepth = 1;
+        int[] scores = new int[placements.Count()];
+        Coord bestPlacement = placements[0];
+        int guess = 0;
+
+        while (this.sw.ElapsedMilliseconds < this.maxTime && scores.Max() < this.evalBound && scores.Max() > -this.evalBound)
+        {
+            // Order placements
+            placements = orderPlacements(placements, scores);
+
+            // Reset scores and killermoves
+            scores.setAll(-this.evalBound);
+            this.killerMoves = new Move[2 * searchDepth];
+
+            // Determine alpha and gamma
+            int alpha = guess - this.delta; int beta = guess + this.delta;
+
+            // Determine scores
+            scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
+
+            // Fail high - research
+            if (scores.Max() >= beta)
+            {
+                alpha = scores.Max(); beta = this.evalBound;
+                scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
+            }
+            // Fail low - research
+            else if (scores.Max() <= alpha)
+            {
+                alpha = -this.evalBound; beta = scores.Max();
+                scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
+            }
+
+            // Change guess
+            guess = scores.Max();
+
+            // Print time per iteration
+            if (this.printIterations)
+            {
+                // Print performance
+                Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+            }
+
+            // Get best placement (if enough time is left, otherewise score isn't complete)
+            if (this.sw.ElapsedMilliseconds < this.maxTime)
+            {
+                bestPlacement = placements[scores.argMax()];
+                actualDepth = searchDepth;
+                nrOfNodes = this.seenNodes;
+            }
+
+            // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+            this.searchDepth++;
+            B.updateCannons();
+        }
+
+        // Stop stopwatch
+        this.sw.Stop();
+
+        // Print nodes evaluated
+        if (printIterations)
+            Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+        // Make best move
+        B.placeTown(bestPlacement, print);
+    }
+
+    int simulateMove(Board B, Move move, float depth, int Alpha, int Beta, int currentPlayerId, Player playerOne, Player playerTwo, int color, bool placeTown)
+    {
+        // Determine fractional ply
+        float fracply = move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture ? .5f : 1f;
+
+        // Check if to position is town (when captured or shoot)
+        bool isTown = false;
+        if ((move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture) &&
+            B.getSpaces()[move.To.x, move.To.y].getPieceType() == Piece.epieceType.town)
+            isTown = true;
+
+        // Make Move (and update hash)
+        B.movePiece(move, false, placeTown, false, isTown);
+
+        // Update Cannons
+        B.updateCannons();
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Get value
+        int value = -NegaMaxAlphaBetaSearch(B, depth - fracply, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, false);
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Undo Move        
+        B.UndoMove(move, placeTown, isTown);
+
+        return value;
+    }
+
+    int[] simulatePlacements(Board B, List<Coord> placements, int alpha, int beta, Player playerOne, Player playerTwo)
+    {
+        int[] scores = new int[placements.Count()];
+        for (int i = 0; i < placements.Count(); i++)
+        {
+            // Place town
+            B.placeTown(placements[i], false);
+
+            // Update cannons
+            B.updateCannons();
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Determine scores
+            scores[i] = -NegaMaxAlphaBetaSearch(B, this.searchDepth - 1, alpha, beta, playerOne, playerTwo, -1, true, false);
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Remove town
+            B.removeTown(placements[i]);
+        }
+
+        // Return scores of placements
+        return scores;
+    }
+
+    int countMinTotalPieces(Board B)
+    {
+        // Min numer of pieces
+        int[] count = new int[2];
+
+        // Count number of 
+        for (int i = 0; i < B.getPiecesCoords().Count(); i++)
+        {
+            count[B.getSpaces()[B.getPiecesCoords()[i].x, B.getPiecesCoords()[i].y].getPieceId() - 1]++;
+        }
+
+        return count.Min();
+    }
+
+    // Reset TT
+    public override void resetTT()
+    {
+        this.TT.reset();
+    }
+
+    // Set weights (for GA)
+    public override void setWeights(int[] wghts)
+    {
+        this.weights = wghts;
+        this.evalBound = getBoundsEval(wghts);
+    }
+}
+
+// Aspirations search with fixed depth (Iterative Deepening, TT, KM, Knowledge, HH) 
+internal class OrderedAS : Player
+{
+    // Initiliaze everything needed
+    // General (Iterative Deepening)
+    int searchDepth;
+    int seenNodes = 0;
+    Stopwatch sw = new Stopwatch();
+    int evalBound;
+    int[] scores;
+    int maxTime;
+    bool printIterations;
+    List<Move> moves = new List<Move>();
+    int[] weights = new int[] { 2, 1, 3, 100, 2, -2, -1, -1, -10, 2, 1 };
+
+    // Move ordering
+    TranspositionTable TT;
+    Move[] killerMoves; // depth, move
+    int[,,,] historyHeuristic = new int[Board.n, Board.n, Board.n, Board.n]; // Add 1, when pruning or actually making the move
+
+    // Window
+    int delta;
+
+    public OrderedAS(int id, int searchTimeMs, int lengthHashKey, int delta, bool printIterations)
+    {
+        // Initiliase
+        // General (Iterative Deepening)
+        this.playerId = id;
+        this.maxTime = searchTimeMs;
+        this.printIterations = printIterations;
+        this.evalBound = this.getBoundsEval(this.weights);
+
+        // TT
+        this.TT = new TranspositionTable(lengthHashKey);
+
+        // Search Windows
+        this.delta = delta;
+    }
+
+    public override void makeMove(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start Stopwatch
+        sw.Restart(); sw.Start();
+
+        // Determine moves and order on knowledge
+        this.moves = B.getPossibleMoves(this.playerId).orderByMoveType();
+        this.scores = new int[moves.Count()];
+
+        // Reset node counter
+        this.seenNodes = 0;
+        // If there are moves left
+        if (moves.Count() > 0)
+        {
+            // Initialise
+            int nrOfNodes = 0;
+            int actualDepth = 0;
+            this.seenNodes = 0;
+            this.searchDepth = 1;
+            this.scores = new int[this.moves.Count()];
+            Move bestMove = moves[0];
+            int guess = 0;
+
+            // While time left
+            while (this.sw.ElapsedMilliseconds < this.maxTime && this.scores.Max() < this.evalBound && this.scores.Max() > -this.evalBound)
+            {
+                // Order this.moves on scores of previous search
+                this.moves = orderMovesScore(this.moves, this.scores);
+
+                // Reset scores and killermoves
+                this.scores.setAll(-this.evalBound);
+                this.killerMoves = new Move[searchDepth];
+
+                // Determine Alpha and Beta (AS)
+                int alpha = guess - this.delta; int beta = guess + this.delta;
+
+                // Determine scores (NegaMax)
+                int score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
+
+                // Fail high - research
+                if (score >= beta)
+                {
+                    this.scores.setAll(-this.evalBound);
+                    alpha = score; beta = this.evalBound;
+                    score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
+                }
+                // Fail low - research
+                else if (score <= alpha)
+                {
+                    this.scores.setAll(-this.evalBound);
+                    alpha = -this.evalBound; beta = score;
+                    score = NegaMaxAlphaBetaSearch(B, this.searchDepth, alpha, beta, playerOne, playerTwo, 1, false, false);
+                }
+
+                // Change guess
+                guess = score;
+
+                // Replace the oldScores with new scores (if enough time is left, otherwise score isn't complete -> needs complicated look at)
+                if (this.sw.ElapsedMilliseconds < this.maxTime)
+                {
+                    bestMove = this.moves[this.scores.argMax()];
+                    actualDepth = this.searchDepth;
+                    nrOfNodes = this.seenNodes;
+
+                    // Print time per iteration
+                    if (this.printIterations)
+                    {
+                        // Print performance
+                        Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+                    }
+                }
+                else
+                {
+                    // If it isn't entireyly searched
+                    // Check the value we would get for choosing the first one
+                    int bestVal = this.scores[0];
+                    int i = 1;
+
+                    // If this one is searched entirely (next one is not equal to -this.evalBound)
+                    // Check if this is better than the move we choose to make (at the previous depth)
+                    while (i + 1 < this.scores.Length && this.scores[i + 1] > -this.evalBound)
+                    {
+                        // If it is better, save it
+                        if (this.scores[i] > bestVal)
+                        {
+                            bestMove = this.moves[i];
+                            actualDepth = this.searchDepth;
+                            nrOfNodes = this.seenNodes;
+                        }
+
+                        i++;
+                    }
+                }
+
+                // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+                this.searchDepth++;
+                B.updateCannons();
+            }
+
+            // Stop stopwatch
+            sw.Stop();
+
+            //Print nodes evaluated
+            if (printIterations)
+                Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+            // Make best move, update HH
+            this.historyHeuristic.multiplyDiscount();
+            B.movePiece(bestMove, print, false, true, false);
+        }
+        // No legal moves is loss.
+        else
+        {
+            this.NoLegalMoves();
+        }
+    }
+
+    int NegaMaxAlphaBetaSearch(Board B, int depth, int Alpha, int Beta, Player playerOne, Player playerTwo, int color, bool placeTown, bool lastNullMove)
+    {
+        // Keep track of number of nodes seen
+        this.seenNodes++;
+
+        // Transposition Table look up
+        int olda = Alpha;
+        TTEntry entry = this.TT.retrieve(B.getCurrentHashKey(), B.getCurrentHashValue());
+        // If position is new, depth = -1 (initial value of TTEntry)
+        if (entry.depth >= depth && depth >= 0)
+        {
+            if (entry.type == TTEntry.flag.exact)
+                return entry.value;
+            else if (entry.type == TTEntry.flag.lowerBound)
+                Alpha = Math.Max(Alpha, entry.value);
+            else if (entry.type == TTEntry.flag.upperBound)
+                Beta = Math.Min(Beta, entry.value);
+            if (Alpha >= Beta)
+                return entry.value;
+        }
+
+        // If town is removes -> win (terminal)
+        if (!placeTown && !B.TownsInGame()) { return B.TownInGame(this.playerId) ? this.evalBound * color : -this.evalBound * color; }
+        // If threefold -> draw (terminal)
+        if (B.getMaxFolds() == 3) { return (-this.evalBound + 1) * color; }
+        // If leafnode , return evaluate
+        if (depth <= 0) { return this.Evaluate(B, this.weights) * color; }
+
+        // Get currentId
+        int currentPlayerId = B.getCurrentPlayer().getPlayerId();
+
+        // Ordering moves correctly
+        List<Move> possibleMoves;
+        if (depth == this.searchDepth)
+            possibleMoves = this.moves;
+        else
+            possibleMoves = orderMoves(B.getPossibleMoves(currentPlayerId), entry.bestMove, this.killerMoves, depth, this.historyHeuristic);
+
+        // Initialise for search
+        int value = -this.evalBound - 1;
+        int bestValue = value;
+        int bestValueIndex = -1;
+
+        // If moves left
+        if (possibleMoves.Count() > 0)
+        {
+            // Look at all moves
+            for (int i = 0; i < possibleMoves.Count(); i++)
+            {
+                // Determine value
+                value = simulateMove(B, possibleMoves[i], depth, Alpha, Beta, currentPlayerId, playerOne, playerTwo, color, placeTown);
+
+                // If it is at our search depth, and isn't during placement, add score to list
+                if (!placeTown && depth == this.searchDepth)
+                {
+                    this.scores[i] = value;
+                }
+
+                // Check if value is higher (better move)
+                if (value > bestValue)
+                {
+                    bestValue = value;
+                    bestValueIndex = i;
+
+                    // Check if it is higher than Alpha
+                    if (bestValue > Alpha)
+                    {
+                        Alpha = bestValue;
+
+                        // Check if Alpha >= Beta, such that we can prune
+                        if (Alpha >= Beta)
+                        {
+                            // Save to killermove and history heuristic
+                            this.killerMoves[(int)(depth - 1)] = possibleMoves[i];
+                            if (possibleMoves[i].type != Move.moveType.shoot || possibleMoves[i].type != Move.moveType.soldierCapture)
+                                this.historyHeuristic[possibleMoves[i].From.x, possibleMoves[i].From.y, possibleMoves[i].To.x, possibleMoves[i].To.y]++;
+                            break;
+                        }
+                    }
+                }
+
+                // If no time less, break
+                if (this.sw.ElapsedMilliseconds > this.maxTime)
+                    break;
+            }
+
+            // Store entry in TT
+            TTEntry.flag flagType;
+            if (bestValue <= olda) { flagType = TTEntry.flag.upperBound; }
+            else if (bestValue >= Beta) { flagType = TTEntry.flag.lowerBound; }
+            else { flagType = TTEntry.flag.exact; }
+
+            // Set entry
+            this.TT.setEntry(B.getCurrentHashKey(), bestValue, flagType, possibleMoves[bestValueIndex],
+                depth, B.getCurrentHashValue());
+
+            // Return value
+            return bestValue;
+        }
+        else
+        {
+            // No move left is loss
+            return -this.evalBound; // No color, looking from current perspective
+        }
+    }
+
+    public override void placeTown(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start sw
+        sw.Restart(); sw.Start();
+
+        // Get placements
+        List<Coord> placements = B.getPossiblePlacements(B.getCurrentPlayer().getPlayerId());
+
+        // Initialise
+        int nrOfNodes = 0;
+        int actualDepth = 0;
+        this.seenNodes = 0;
+        this.searchDepth = 1;
+        int[] scores = new int[placements.Count()];
+        Coord bestPlacement = placements[0];
+        int guess = 0;
+
+        while (this.sw.ElapsedMilliseconds < this.maxTime && scores.Max() < this.evalBound && scores.Max() > -this.evalBound)
+        {
+            // Order placements
+            placements = orderPlacements(placements, scores);
+
+            // Reset scores and killermoves
+            scores.setAll(-this.evalBound);
+            this.killerMoves = new Move[2 * searchDepth];
+
+            // Determine alpha and gamma
+            int alpha = guess - this.delta; int beta = guess + this.delta;
+
+            // Determine scores
+            scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
+
+            // Fail high - research
+            if (scores.Max() >= beta)
+            {
+                alpha = scores.Max(); beta = this.evalBound;
+                scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
+            }
+            // Fail low - research
+            else if (scores.Max() <= alpha)
+            {
+                alpha = -this.evalBound; beta = scores.Max();
+                scores = simulatePlacements(B, placements, alpha, beta, playerOne, playerTwo);
+            }
+
+            // Change guess
+            guess = scores.Max();
+
+            // Print time per iteration
+            if (this.printIterations)
+            {
+                // Print performance
+                Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+            }
+
+            // Get best placement (if enough time is left, otherewise score isn't complete)
+            if (this.sw.ElapsedMilliseconds < this.maxTime)
+            {
+                bestPlacement = placements[scores.argMax()];
+                actualDepth = searchDepth;
+                nrOfNodes = this.seenNodes;
+            }
+
+            // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+            this.searchDepth++;
+            B.updateCannons();
+        }
+
+        // Stop stopwatch
+        this.sw.Stop();
+
+        // Print nodes evaluated
+        if (printIterations)
+            Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+        // Make best move
+        B.placeTown(bestPlacement, print);
+    }
+
+    int simulateMove(Board B, Move move, int depth, int Alpha, int Beta, int currentPlayerId, Player playerOne, Player playerTwo, int color, bool placeTown)
+    {
+        // Check if to position is town (when captured or shoot)
+        bool isTown = false;
+        if ((move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture) &&
+            B.getSpaces()[move.To.x, move.To.y].getPieceType() == Piece.epieceType.town)
+            isTown = true;
+
+        // Make Move (and update hash)
+        B.movePiece(move, false, placeTown, false, isTown);
+
+        // Update Cannons
+        B.updateCannons();
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Get value
+        int value = -NegaMaxAlphaBetaSearch(B, depth - 1, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, false);
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Undo Move        
+        B.UndoMove(move, placeTown, isTown);
+
+        return value;
+    }
+
+    int[] simulatePlacements(Board B, List<Coord> placements, int alpha, int beta, Player playerOne, Player playerTwo)
+    {
+        int[] scores = new int[placements.Count()];
+        for (int i = 0; i < placements.Count(); i++)
+        {
+            // Place town
+            B.placeTown(placements[i], false);
+
+            // Update cannons
+            B.updateCannons();
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Determine scores
+            scores[i] = -NegaMaxAlphaBetaSearch(B, this.searchDepth - 1, alpha, beta, playerOne, playerTwo, -1, true, false);
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Remove town
+            B.removeTown(placements[i]);
+        }
+
+        // Return scores of placements
+        return scores;
+    }
+
+    // Reset TT
+    public override void resetTT()
+    {
+        this.TT.reset();
+    }
+
+    // Set weights (for GA)
+    public override void setWeights(int[] wghts)
+    {
+        this.weights = wghts;
+        this.evalBound = getBoundsEval(wghts);
+    }
+}
+
+// Principal Variation Search / NegaScout with move ordering (Iterative Deepening, TT, KM, Knowledge, HH) 
+internal class OrderedPVS : Player
+{
+    // Initiliaze everything needed
+    // General (Iterative Deepening)
+    int searchDepth;
+    int seenNodes = 0;
+    Stopwatch sw = new Stopwatch();
+    int evalBound;
+    int[] scores;
+    int maxTime;
+    bool printIterations;
+    List<Move> moves = new List<Move>();
+    int[] weights = new int[] { 2, 1, 3, 100, 2, -2, -1, -1, -10, 2, 1 };
+
+    // Move ordering
+    TranspositionTable TT;
+    Move[] killerMoves; // depth, move
+    int[,,,] historyHeuristic = new int[Board.n, Board.n, Board.n, Board.n]; // Add 1, when pruning or actually making the move
+
+    public OrderedPVS(int id, int searchTimeMs, int lengthHashKey, bool printIterations)
+    {
+        // Initiliase
+        // General (Iterative Deepening)
+        this.playerId = id;
+        this.maxTime = searchTimeMs;
+        this.printIterations = printIterations;
+        this.evalBound = this.getBoundsEval(this.weights);
+
+        // TT
+        this.TT = new TranspositionTable(lengthHashKey);
+    }
+
+    public override void makeMove(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start Stopwatch
+        sw.Restart(); sw.Start();
+
+        // Determine moves and order on knowledge
+        this.moves = B.getPossibleMoves(this.playerId).orderByMoveType();
+        this.scores = new int[moves.Count()];
+
+        // Reset node counter
+        this.seenNodes = 0;
+        // If there are moves left
+        if (moves.Count() > 0)
+        {
+            // Initialise
+            int nrOfNodes = 0;
+            int actualDepth = 0;
+            this.seenNodes = 0;
+            this.searchDepth = 1;
+            this.scores = new int[this.moves.Count()];
+            Move bestMove = moves[0];
+
+            // While time left
+            while (this.sw.ElapsedMilliseconds < this.maxTime && this.scores.Max() < this.evalBound && this.scores.Max() > -this.evalBound)
+            {
+                // Order this.moves on scores of previous search
+                this.moves = orderMovesScore(this.moves, this.scores);
+
+                // Reset scores and killermoves
+                this.scores.setAll(-this.evalBound);
+                this.killerMoves = new Move[searchDepth];
+
+                // Determine scores (NegaMax)
+                NegaMaxAlphaBetaSearch(B, this.searchDepth, -this.evalBound, this.evalBound, playerOne, playerTwo, 1, false, false);
+
+                // Replace the oldScores with new scores (if enough time is left, otherwise score isn't complete -> needs complicated look at)
+                if (this.sw.ElapsedMilliseconds < this.maxTime)
+                {
+                    bestMove = this.moves[this.scores.argMax()];
+                    actualDepth = this.searchDepth;
+                    nrOfNodes = this.seenNodes;
+
+                    // Print time per iteration
+                    if (this.printIterations)
+                    {
+                        // Print performance
+                        Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+                    }
+                }
+                else
+                {
+                    // If it isn't entireyly searched
+                    // Check the value we would get for choosing the first one
+                    int bestVal = this.scores[0];
+                    int i = 1;
+
+                    // If this one is searched entirely (next one is not equal to -this.evalBound)
+                    // Check if this is better than the move we choose to make (at the previous depth)
+                    while (i + 1 < this.scores.Length && this.scores[i + 1] > -this.evalBound)
+                    {
+                        // If it is better, save it
+                        if (this.scores[i] > bestVal)
+                        {
+                            bestMove = this.moves[i];
+                            actualDepth = this.searchDepth;
+                            nrOfNodes = this.seenNodes;
+                        }
+
+                        i++;
+                    }
+                }
+
+                // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+                this.searchDepth++;
+                B.updateCannons();
+            }
+
+            // Stop stopwatch
+            sw.Stop();
+
+            //Print nodes evaluated
+            if (printIterations)
+                Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+            // Make best move, update HH
+            this.historyHeuristic.multiplyDiscount();
+            B.movePiece(bestMove, print, false, true, false);
+        }
+        // No legal moves is loss.
+        else
+        {
+            this.NoLegalMoves();
+        }
+    }
+
+    int NegaMaxAlphaBetaSearch(Board B, int depth, int Alpha, int Beta, Player playerOne, Player playerTwo, int color, bool placeTown, bool lastNullMove)
+    {
+        // Keep track of number of nodes seen
+        this.seenNodes++;
+
+        // Transposition Table look up
+        int olda = Alpha;
+        TTEntry entry = this.TT.retrieve(B.getCurrentHashKey(), B.getCurrentHashValue());
+        // If position is new, depth = -1 (initial value of TTEntry)
+        if (entry.depth >= depth && depth >= 0)
+        {
+            if (entry.type == TTEntry.flag.exact)
+                return entry.value;
+            else if (entry.type == TTEntry.flag.lowerBound)
+                Alpha = Math.Max(Alpha, entry.value);
+            else if (entry.type == TTEntry.flag.upperBound)
+                Beta = Math.Min(Beta, entry.value);
+            if (Alpha >= Beta)
+                return entry.value;
+        }
+
+        // If town is removes -> win (terminal)
+        if (!placeTown && !B.TownsInGame()) { return B.TownInGame(this.playerId) ? this.evalBound * color : -this.evalBound * color; }
+        // If threefold -> draw (terminal)
+        if (B.getMaxFolds() == 3) { return (-this.evalBound + 1) * color; }
+        // If leafnode , return evaluate
+        if (depth <= 0) { return this.Evaluate(B, this.weights) * color; }
+
+        // Get currentId
+        int currentPlayerId = B.getCurrentPlayer().getPlayerId();
+
+        // Ordering moves correctly
+        List<Move> possibleMoves;
+        if (depth == this.searchDepth)
+            possibleMoves = this.moves;
+        else
+            possibleMoves = orderMoves(B.getPossibleMoves(currentPlayerId), entry.bestMove, this.killerMoves, depth, this.historyHeuristic);
+
+        // Initialise for search
+        int value = -this.evalBound - 1;
+        int bestValueIndex = 0;
+
+        // If moves left
+        if (possibleMoves.Count() > 0)
+        {
+            // NegaScout
+            int bestValue = simulateMove(B, possibleMoves[0], depth, Alpha, Beta, currentPlayerId, playerOne, playerTwo, color, placeTown);
+            if (bestValue < Beta)
+            {
+                // Look at all moves
+                for (int i = 1; i < possibleMoves.Count(); i++)
+                {
+                    // Determine small window (by looking at best value
+                    int lbound = Math.Max(bestValue, Alpha); int ubound = lbound + 1;
+
+                    // Determine value
+                    value = simulateMove(B, possibleMoves[i], depth, lbound, ubound, currentPlayerId, playerOne, playerTwo, color, placeTown);
+
+                    // Check if research is fail high
+                    if (value >= ubound && value < Beta)
+                        value = simulateMove(B, possibleMoves[i], depth, ubound, Beta, currentPlayerId, playerOne, playerTwo, color, placeTown);
+
+                    // If it is at our search depth, and isn't during placement, add score to list
+                    if (!placeTown && depth == this.searchDepth)
+                    {
+                        this.scores[i] = value;
+                    }
+
+                    // Check if value is higher (better move)
+                    if (value > bestValue)
+                    {
+                        bestValue = value;
+                        bestValueIndex = i;
+
+                        // Check if it is higher than Alpha
+                        if (bestValue > Alpha)
+                        {
+                            Alpha = bestValue;
+
+                            // Check if Alpha >= Beta, such that we can prune
+                            if (Alpha >= Beta)
+                            {
+                                // Save to killermove and history heuristic
+                                this.killerMoves[(int)(depth - 1)] = possibleMoves[i];
+                                if (possibleMoves[i].type != Move.moveType.shoot || possibleMoves[i].type != Move.moveType.soldierCapture)
+                                    this.historyHeuristic[possibleMoves[i].From.x, possibleMoves[i].From.y, possibleMoves[i].To.x, possibleMoves[i].To.y]++;
+                                break;
+                            }
+                        }
+                    }
+
+                    // If no time less, break
+                    if (this.sw.ElapsedMilliseconds > this.maxTime)
+                        break;
+                }
+            }
+
+            // Store entry in TT
+            TTEntry.flag flagType;
+            if (bestValue <= olda) { flagType = TTEntry.flag.upperBound; }
+            else if (bestValue >= Beta) { flagType = TTEntry.flag.lowerBound; }
+            else { flagType = TTEntry.flag.exact; }
+
+            // Set entry
+            this.TT.setEntry(B.getCurrentHashKey(), bestValue, flagType, possibleMoves[bestValueIndex],
+                depth, B.getCurrentHashValue());
+
+            // Return value
+            return bestValue;
+        }
+        else
+        {
+            // No move left is loss
+            return -this.evalBound; // No color, looking from current perspective
+        }
+    }
+
+    public override void placeTown(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start sw
+        sw.Restart(); sw.Start();
+
+        // Get placements
+        List<Coord> placements = B.getPossiblePlacements(B.getCurrentPlayer().getPlayerId());
+
+        // Initialise
+        int nrOfNodes = 0;
+        int actualDepth = 0;
+        this.seenNodes = 0;
+        this.searchDepth = 1;
+        int[] scores = new int[placements.Count()];
+        Coord bestPlacement = placements[0];
+
+        while (this.sw.ElapsedMilliseconds < this.maxTime && scores.Max() < this.evalBound && scores.Max() > -this.evalBound)
+        {
+            // Order placements
+            placements = orderPlacements(placements, scores);
+
+            // Reset scores and killermoves
+            scores.setAll(-this.evalBound);
+            this.killerMoves = new Move[2 * searchDepth];
+
+            // Determine scores
+            scores = simulatePlacements(B, placements, -this.evalBound, this.evalBound, playerOne, playerTwo);
+
+            // Print time per iteration
+            if (this.printIterations)
+            {
+                // Print performance
+                Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+            }
+
+            // Get best placement (if enough time is left, otherewise score isn't complete)
+            if (this.sw.ElapsedMilliseconds < this.maxTime)
+            {
+                bestPlacement = placements[scores.argMax()];
+                actualDepth = searchDepth;
+                nrOfNodes = this.seenNodes;
+            }
+
+            // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+            this.searchDepth++;
+            B.updateCannons();
+        }
+
+        // Stop stopwatch
+        this.sw.Stop();
+
+        // Print nodes evaluated
+        if (printIterations)
+            Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+        // Make best move
+        B.placeTown(bestPlacement, print);
+    }
+
+    int simulateMove(Board B, Move move, int depth, int Alpha, int Beta, int currentPlayerId, Player playerOne, Player playerTwo, int color, bool placeTown)
+    {
+        // Check if to position is town (when captured or shoot)
+        bool isTown = false;
+        if ((move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture) &&
+            B.getSpaces()[move.To.x, move.To.y].getPieceType() == Piece.epieceType.town)
+            isTown = true;
+
+        // Make Move (and update hash)
+        B.movePiece(move, false, placeTown, false, isTown);
+
+        // Update Cannons
+        B.updateCannons();
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Get value
+        int value = -NegaMaxAlphaBetaSearch(B, depth - 1, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, false);
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Undo Move        
+        B.UndoMove(move, placeTown, isTown);
+
+        return value;
+    }
+
+    int[] simulatePlacements(Board B, List<Coord> placements, int alpha, int beta, Player playerOne, Player playerTwo)
+    {
+        int[] scores = new int[placements.Count()];
+        for (int i = 0; i < placements.Count(); i++)
+        {
+            // Place town
+            B.placeTown(placements[i], false);
+
+            // Update cannons
+            B.updateCannons();
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Determine scores
+            scores[i] = -NegaMaxAlphaBetaSearch(B, this.searchDepth - 1, alpha, beta, playerOne, playerTwo, -1, true, false);
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Remove town
+            B.removeTown(placements[i]);
+        }
+
+        // Return scores of placements
+        return scores;
+    }
+
+    // Reset TT
+    public override void resetTT()
+    {
+        this.TT.reset();
+    }
+
+    // Set weights (for GA)
+    public override void setWeights(int[] wghts)
+    {
+        this.weights = wghts;
+        this.evalBound = getBoundsEval(wghts);
+    }
+}
+
+// Iterative Deepening with move ordering (Iterative Deepening, TT, KM, Knowledge, HH)
+internal class OrderedID : Player
+{
+    // Initiliaze everything needed
+    // General (Iterative Deepening)
+    int searchDepth;
+    int seenNodes = 0;
+    Stopwatch sw = new Stopwatch();
+    int evalBound;
+    int[] scores;
+    int maxTime;
+    bool printIterations;
+    List<Move> moves = new List<Move>();
+    int[] weights = new int[] { 2, 1, 3, 100, 2, -2, -1, -1, -10, 2, 1 };
+
+    // Move ordering
+    TranspositionTable TT;
+    Move[] killerMoves; // depth, move
+    int[,,,] historyHeuristic = new int[Board.n, Board.n, Board.n, Board.n]; // Add 1, when pruning or actually making the move
+
+    public OrderedID(int id, int searchTimeMs, int lengthHashKey, bool printIterations)
+    {
+        // Initiliase
+        // General (Iterative Deepening)
+        this.playerId = id;
+        this.maxTime = searchTimeMs;
+        this.printIterations = printIterations;
+        this.evalBound = this.getBoundsEval(this.weights);
+
+        // TT
+        this.TT = new TranspositionTable(lengthHashKey);
+    }
+
+    public override void makeMove(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start Stopwatch
+        sw.Restart(); sw.Start();
+
+        // Determine moves and order on knowledge
+        this.moves = B.getPossibleMoves(this.playerId).orderByMoveType();
+        this.scores = new int[moves.Count()];
+
+        // Reset node counter
+        this.seenNodes = 0;
+        // If there are moves left
+        if (moves.Count() > 0)
+        {
+            // Initialise
+            int nrOfNodes = 0;
+            int actualDepth = 0;
+            this.seenNodes = 0;
+            this.searchDepth = 1;
+            this.scores = new int[this.moves.Count()];
+            Move bestMove = moves[0];
+
+            // While time left
+            while (this.sw.ElapsedMilliseconds < this.maxTime && this.scores.Max() < this.evalBound && this.scores.Max() > -this.evalBound)
+            {
+                // Order this.moves on scores of previous search
+                this.moves = orderMovesScore(this.moves, this.scores);
+
+                // Reset scores and killermoves
+                this.scores.setAll(-this.evalBound);
+                this.killerMoves = new Move[searchDepth];
+
+                // Determine scores (NegaMax)
+                NegaMaxAlphaBetaSearch(B, this.searchDepth, -this.evalBound, this.evalBound, playerOne, playerTwo, 1, false, false);
+
+                // Replace the oldScores with new scores (if enough time is left, otherwise score isn't complete -> needs complicated look at)
+                if (this.sw.ElapsedMilliseconds < this.maxTime)
+                {
+                    bestMove = this.moves[this.scores.argMax()];
+                    actualDepth = this.searchDepth;
+                    nrOfNodes = this.seenNodes;
+
+                    // Print time per iteration
+                    if (this.printIterations)
+                    {
+                        // Print performance
+                        Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+                    }
+                }
+                else
+                {
+                    // If it isn't entireyly searched
+                    // Check the value we would get for choosing the first one
+                    int bestVal = this.scores[0];
+                    int i = 1;
+
+                    // If this one is searched entirely (next one is not equal to -this.evalBound)
+                    // Check if this is better than the move we choose to make (at the previous depth)
+                    while (i + 1 < this.scores.Length && this.scores[i + 1] > -this.evalBound)
+                    {
+                        // If it is better, save it
+                        if (this.scores[i] > bestVal)
+                        {
+                            bestMove = this.moves[i];
+                            actualDepth = this.searchDepth;
+                            nrOfNodes = this.seenNodes;
+                        }
+
+                        i++;
+                    }
+                }
+
+                // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+                this.searchDepth++;
+                B.updateCannons();
+            }
+
+            // Stop stopwatch
+            sw.Stop();
+
+            //Print nodes evaluated
+            if (printIterations)
+                Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+            // Make best move, update HH
+            this.historyHeuristic.multiplyDiscount();
+            B.movePiece(bestMove, print, false, true, false);
+        }
+        // No legal moves is loss.
+        else
+        {
+            this.NoLegalMoves();
+        }
+    }
+
+    int NegaMaxAlphaBetaSearch(Board B, int depth, int Alpha, int Beta, Player playerOne, Player playerTwo, int color, bool placeTown, bool lastNullMove)
+    {
+        // Keep track of number of nodes seen
+        this.seenNodes++;
+
+        // Transposition Table look up
+        int olda = Alpha;
+        TTEntry entry = this.TT.retrieve(B.getCurrentHashKey(), B.getCurrentHashValue());
+        // If position is new, depth = -1 (initial value of TTEntry)
+        if (entry.depth >= depth && depth >= 0)
+        {
+            if (entry.type == TTEntry.flag.exact)
+                return entry.value;
+            else if (entry.type == TTEntry.flag.lowerBound)
+                Alpha = Math.Max(Alpha, entry.value);
+            else if (entry.type == TTEntry.flag.upperBound)
+                Beta = Math.Min(Beta, entry.value);
+            if (Alpha >= Beta)
+                return entry.value;
+        }
+
+        // If town is removes -> win (terminal)
+        if (!placeTown && !B.TownsInGame()) { return B.TownInGame(this.playerId) ? this.evalBound * color : -this.evalBound * color; }
+        // If threefold -> draw (terminal)
+        if (B.getMaxFolds() == 3) { return (-this.evalBound + 1) * color; }
+        // If leafnode , return evaluate
+        if (depth <= 0) { return this.Evaluate(B, this.weights) * color; }
+
+        // Get currentId
+        int currentPlayerId = B.getCurrentPlayer().getPlayerId();
+
+        // Ordering moves correctly
+        List<Move> possibleMoves;
+        if (depth == this.searchDepth)
+            possibleMoves = this.moves;
+        else
+            possibleMoves = orderMoves(B.getPossibleMoves(currentPlayerId), entry.bestMove, this.killerMoves, depth, this.historyHeuristic);
+
+        // Initialise for search
+        int value = -this.evalBound - 1;
+        int bestValue = value;
+        int bestValueIndex = -1;
+
+        // If moves left
+        if (possibleMoves.Count() > 0)
+        {
+            // Look at all moves
+            for (int i = 0; i < possibleMoves.Count(); i++)
+            {
+                // Determine value
+                value = simulateMove(B, possibleMoves[i], depth, Alpha, Beta, currentPlayerId, playerOne, playerTwo, color, placeTown);
+
+                // If it is at our search depth, and isn't during placement, add score to list
+                if (!placeTown && depth == this.searchDepth)
+                {
+                    this.scores[i] = value;
+                }
+
+                // Check if value is higher (better move)
+                if (value > bestValue)
+                {
+                    bestValue = value;
+                    bestValueIndex = i;
+
+                    // Check if it is higher than Alpha
+                    if (bestValue > Alpha)
+                    {
+                        Alpha = bestValue;
+
+                        // Check if Alpha >= Beta, such that we can prune
+                        if (Alpha >= Beta)
+                        {
+                            // Save to killermove and history heuristic
+                            this.killerMoves[(int)(depth - 1)] = possibleMoves[i];
+                            if (possibleMoves[i].type != Move.moveType.shoot || possibleMoves[i].type != Move.moveType.soldierCapture)
+                                this.historyHeuristic[possibleMoves[i].From.x, possibleMoves[i].From.y, possibleMoves[i].To.x, possibleMoves[i].To.y]++;
+                            break;
+                        }
+                    }
+                }
+
+                // If no time less, break
+                if (this.sw.ElapsedMilliseconds > this.maxTime)
+                    break;
+            }
+
+            // Store entry in TT
+            TTEntry.flag flagType;
+            if (bestValue <= olda) { flagType = TTEntry.flag.upperBound; }
+            else if (bestValue >= Beta) { flagType = TTEntry.flag.lowerBound; }
+            else { flagType = TTEntry.flag.exact; }
+
+            // Set entry
+            this.TT.setEntry(B.getCurrentHashKey(), bestValue, flagType, possibleMoves[bestValueIndex],
+                depth, B.getCurrentHashValue());
+
+            // Return value
+            return bestValue;
+        }
+        else
+        {
+            // No move left is loss
+            return -this.evalBound; // No color, looking from current perspective
+        }
+    }
+
+    public override void placeTown(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start sw
+        sw.Restart(); sw.Start();
+
+        // Get placements
+        List<Coord> placements = B.getPossiblePlacements(B.getCurrentPlayer().getPlayerId());
+
+        // Initialise
+        int nrOfNodes = 0;
+        int actualDepth = 0;
+        this.seenNodes = 0;
+        this.searchDepth = 1;
+        int[] scores = new int[placements.Count()];
+        Coord bestPlacement = placements[0];
+
+        while (this.sw.ElapsedMilliseconds < this.maxTime && scores.Max() < this.evalBound && scores.Max() > -this.evalBound)
+        {
+            // Order placements
+            placements = orderPlacements(placements, scores);
+
+            // Reset scores and killermoves
+            scores.setAll(-this.evalBound);
+            this.killerMoves = new Move[2 * searchDepth];
+
+            // Determine scores
+            scores = simulatePlacements(B, placements, -this.evalBound, this.evalBound, playerOne, playerTwo);
+
+            // Print time per iteration
+            if (this.printIterations)
+            {
+                // Print performance
+                Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+            }
+
+            // Get best placement (if enough time is left, otherewise score isn't complete)
+            if (this.sw.ElapsedMilliseconds < this.maxTime)
+            {
+                bestPlacement = placements[scores.argMax()];
+                actualDepth = searchDepth;
+                nrOfNodes = this.seenNodes;
+            }
+
+            // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+            this.searchDepth++;
+            B.updateCannons();
+        }
+
+        // Stop stopwatch
+        this.sw.Stop();
+
+        // Print nodes evaluated
+        if (printIterations)
+            Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+        // Make best move
+        B.placeTown(bestPlacement, print);
+    }
+
+    int simulateMove(Board B, Move move, int depth, int Alpha, int Beta, int currentPlayerId, Player playerOne, Player playerTwo, int color, bool placeTown)
+    {
+        // Check if to position is town (when captured or shoot)
+        bool isTown = false;
+        if ((move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture) &&
+            B.getSpaces()[move.To.x, move.To.y].getPieceType() == Piece.epieceType.town)
+            isTown = true;
+
+        // Make Move (and update hash)
+        B.movePiece(move, false, placeTown, false, isTown);
+
+        // Update Cannons
+        B.updateCannons();
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Get value
+        int value = -NegaMaxAlphaBetaSearch(B, depth - 1, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, false);
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Undo Move        
+        B.UndoMove(move, placeTown, isTown);
+
+        return value;
+    }
+
+    int[] simulatePlacements(Board B, List<Coord> placements, int alpha, int beta, Player playerOne, Player playerTwo)
+    {
+        int[] scores = new int[placements.Count()];
+        for (int i = 0; i < placements.Count(); i++)
+        {
+            // Place town
+            B.placeTown(placements[i], false);
+
+            // Update cannons
+            B.updateCannons();
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Determine scores
+            scores[i] = -NegaMaxAlphaBetaSearch(B, this.searchDepth - 1, alpha, beta, playerOne, playerTwo, -1, true, false);
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Remove town
+            B.removeTown(placements[i]);
+        }
+
+        // Return scores of placements
+        return scores;
+    }
+
+    // Reset TT
+    public override void resetTT()
+    {
+        this.TT.reset();
+    }
+
+    // Set weights (for GA)
+    public override void setWeights(int[] wghts)
+    {
+        this.weights = wghts;
+        this.evalBound = getBoundsEval(wghts);
+    }
+}
+
+// Iterative Deepening with move ordering (Iterative Deepening, TT, KM, Knowledge)
+internal class ID_TT_KM : Player
+{
+    // Initiliaze everything needed
+    // General (Iterative Deepening)
+    int searchDepth;
+    int seenNodes = 0;
+    Stopwatch sw = new Stopwatch();
+    int evalBound;
+    int[] scores;
+    int maxTime;
+    bool printIterations;
+    List<Move> moves = new List<Move>();
+    int[] weights = new int[] { 2, 1, 3, 100, 2, -2, -1, -1, -10, 2, 1 };
+
+    // Move ordering
+    TranspositionTable TT;
+    Move[] killerMoves; // depth, move
+
+    public ID_TT_KM(int id, int searchTimeMs, int lengthHashKey, bool printIterations)
+    {
+        // Initiliase
+        // General (Iterative Deepening)
+        this.playerId = id;
+        this.maxTime = searchTimeMs;
+        this.printIterations = printIterations;
+        this.evalBound = this.getBoundsEval(this.weights);
+
+        // TT
+        this.TT = new TranspositionTable(lengthHashKey);
+    }
+
+    public override void makeMove(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start Stopwatch
+        sw.Restart(); sw.Start();
+
+        // Determine moves and order on knowledge
+        this.moves = B.getPossibleMoves(this.playerId).orderByMoveType();
+        this.scores = new int[moves.Count()];
+
+        // Reset node counter
+        this.seenNodes = 0;
+        // If there are moves left
+        if (moves.Count() > 0)
+        {
+            // Initialise
+            int nrOfNodes = 0;
+            int actualDepth = 0;
+            this.seenNodes = 0;
+            this.searchDepth = 1;
+            this.scores = new int[this.moves.Count()];
+            Move bestMove = moves[0];
+
+            // While time left
+            while (this.sw.ElapsedMilliseconds < this.maxTime && this.scores.Max() < this.evalBound && this.scores.Max() > -this.evalBound)
+            {
+                // Order this.moves on scores of previous search
+                this.moves = orderMovesScore(this.moves, this.scores);
+
+                // Reset scores and killermoves
+                this.scores.setAll(-this.evalBound);
+                this.killerMoves = new Move[searchDepth];
+
+                // Determine scores (NegaMax)
+                NegaMaxAlphaBetaSearch(B, this.searchDepth, -this.evalBound, this.evalBound, playerOne, playerTwo, 1, false, false);
+
+                // Replace the oldScores with new scores (if enough time is left, otherwise score isn't complete -> needs complicated look at)
+                if (this.sw.ElapsedMilliseconds < this.maxTime)
+                {
+                    bestMove = this.moves[this.scores.argMax()];
+                    actualDepth = this.searchDepth;
+                    nrOfNodes = this.seenNodes;
+
+                    // Print time per iteration
+                    if (this.printIterations)
+                    {
+                        // Print performance
+                        Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+                    }
+                }
+                else
+                {
+                    // If it isn't entireyly searched
+                    // Check the value we would get for choosing the first one
+                    int bestVal = this.scores[0];
+                    int i = 1;
+
+                    // If this one is searched entirely (next one is not equal to -this.evalBound)
+                    // Check if this is better than the move we choose to make (at the previous depth)
+                    while (i + 1 < this.scores.Length && this.scores[i + 1] > -this.evalBound)
+                    {
+                        // If it is better, save it
+                        if (this.scores[i] > bestVal)
+                        {
+                            bestMove = this.moves[i];
+                            actualDepth = this.searchDepth;
+                            nrOfNodes = this.seenNodes;
+                        }
+
+                        i++;
+                    }
+                }
+
+                // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+                this.searchDepth++;
+                B.updateCannons();
+            }
+
+            // Stop stopwatch
+            sw.Stop();
+
+            //Print nodes evaluated
+            if (printIterations)
+                Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+            // Make best move
+            B.movePiece(bestMove, print, false, true, false);
+        }
+        // No legal moves is loss.
+        else
+        {
+            this.NoLegalMoves();
+        }
+    }
+
+    int NegaMaxAlphaBetaSearch(Board B, int depth, int Alpha, int Beta, Player playerOne, Player playerTwo, int color, bool placeTown, bool lastNullMove)
+    {
+        // Keep track of number of nodes seen
+        this.seenNodes++;
+
+        // Transposition Table look up
+        int olda = Alpha;
+        TTEntry entry = this.TT.retrieve(B.getCurrentHashKey(), B.getCurrentHashValue());
+        // If position is new, depth = -1 (initial value of TTEntry)
+        if (entry.depth >= depth && depth >= 0)
+        {
+            if (entry.type == TTEntry.flag.exact)
+                return entry.value;
+            else if (entry.type == TTEntry.flag.lowerBound)
+                Alpha = Math.Max(Alpha, entry.value);
+            else if (entry.type == TTEntry.flag.upperBound)
+                Beta = Math.Min(Beta, entry.value);
+            if (Alpha >= Beta)
+                return entry.value;
+        }
+
+        // If town is removes -> win (terminal)
+        if (!placeTown && !B.TownsInGame()) { return B.TownInGame(this.playerId) ? this.evalBound * color : -this.evalBound * color; }
+        // If threefold -> draw (terminal)
+        if (B.getMaxFolds() == 3) { return (-this.evalBound + 1) * color; }
+        // If leafnode , return evaluate
+        if (depth <= 0) { return this.Evaluate(B, this.weights) * color; }
+
+        // Get currentId
+        int currentPlayerId = B.getCurrentPlayer().getPlayerId();
+
+        // Ordering moves correctly
+        List<Move> possibleMoves;
+        if (depth == this.searchDepth)
+            possibleMoves = this.moves;
+        else
+            possibleMoves = orderMoves(B.getPossibleMoves(currentPlayerId), entry.bestMove, this.killerMoves, depth);
+
+        // Initialise for search
+        int value = -this.evalBound - 1;
+        int bestValue = value;
+        int bestValueIndex = -1;
+
+        // If moves left
+        if (possibleMoves.Count() > 0)
+        {
+            // Look at all moves
+            for (int i = 0; i < possibleMoves.Count(); i++)
+            {
+                // Determine value
+                value = simulateMove(B, possibleMoves[i], depth, Alpha, Beta, currentPlayerId, playerOne, playerTwo, color, placeTown);
+
+                // If it is at our search depth, and isn't during placement, add score to list
+                if (!placeTown && depth == this.searchDepth)
+                {
+                    this.scores[i] = value;
+                }
+
+                // Check if value is higher (better move)
+                if (value > bestValue)
+                {
+                    bestValue = value;
+                    bestValueIndex = i;
+
+                    // Check if it is higher than Alpha
+                    if (bestValue > Alpha)
+                    {
+                        Alpha = bestValue;
+
+                        // Check if Alpha >= Beta, such that we can prune
+                        if (Alpha >= Beta)
+                        {
+                            // Save to killermove
+                            this.killerMoves[(int)(depth - 1)] = possibleMoves[i];
+                            break;
+                        }
+                    }
+                }
+
+                // If no time less, break
+                if (this.sw.ElapsedMilliseconds > this.maxTime)
+                    break;
+            }
+
+            // Store entry in TT
+            TTEntry.flag flagType;
+            if (bestValue <= olda) { flagType = TTEntry.flag.upperBound; }
+            else if (bestValue >= Beta) { flagType = TTEntry.flag.lowerBound; }
+            else { flagType = TTEntry.flag.exact; }
+
+            // Set entry
+            this.TT.setEntry(B.getCurrentHashKey(), bestValue, flagType, possibleMoves[bestValueIndex],
+                depth, B.getCurrentHashValue());
+
+            // Return value
+            return bestValue;
+        }
+        else
+        {
+            // No move left is loss
+            return -this.evalBound; // No color, looking from current perspective
+        }
+    }
+
+    public override void placeTown(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start sw
+        sw.Restart(); sw.Start();
+
+        // Get placements
+        List<Coord> placements = B.getPossiblePlacements(B.getCurrentPlayer().getPlayerId());
+
+        // Initialise
+        int nrOfNodes = 0;
+        int actualDepth = 0;
+        this.seenNodes = 0;
+        this.searchDepth = 1;
+        int[] scores = new int[placements.Count()];
+        Coord bestPlacement = placements[0];
+
+        while (this.sw.ElapsedMilliseconds < this.maxTime && scores.Max() < this.evalBound && scores.Max() > -this.evalBound)
+        {
+            // Order placements
+            placements = orderPlacements(placements, scores);
+
+            // Reset scores and killermoves
+            scores.setAll(-this.evalBound);
+            this.killerMoves = new Move[2 * searchDepth];
+
+            // Determine scores
+            scores = simulatePlacements(B, placements, -this.evalBound, this.evalBound, playerOne, playerTwo);
+
+            // Print time per iteration
+            if (this.printIterations)
+            {
+                // Print performance
+                Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+            }
+
+            // Get best placement (if enough time is left, otherewise score isn't complete)
+            if (this.sw.ElapsedMilliseconds < this.maxTime)
+            {
+                bestPlacement = placements[scores.argMax()];
+                actualDepth = searchDepth;
+                nrOfNodes = this.seenNodes;
+            }
+
+            // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+            this.searchDepth++;
+            B.updateCannons();
+        }
+
+        // Stop stopwatch
+        this.sw.Stop();
+
+        // Print nodes evaluated
+        if (printIterations)
+            Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+        // Make best move
+        B.placeTown(bestPlacement, print);
+    }
+
+    int simulateMove(Board B, Move move, int depth, int Alpha, int Beta, int currentPlayerId, Player playerOne, Player playerTwo, int color, bool placeTown)
+    {
+        // Check if to position is town (when captured or shoot)
+        bool isTown = false;
+        if ((move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture) &&
+            B.getSpaces()[move.To.x, move.To.y].getPieceType() == Piece.epieceType.town)
+            isTown = true;
+
+        // Make Move (and update hash)
+        B.movePiece(move, false, placeTown, false, isTown);
+
+        // Update Cannons
+        B.updateCannons();
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Get value
+        int value = -NegaMaxAlphaBetaSearch(B, depth - 1, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, false);
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Undo Move        
+        B.UndoMove(move, placeTown, isTown);
+
+        return value;
+    }
+
+    int[] simulatePlacements(Board B, List<Coord> placements, int alpha, int beta, Player playerOne, Player playerTwo)
+    {
+        int[] scores = new int[placements.Count()];
+        for (int i = 0; i < placements.Count(); i++)
+        {
+            // Place town
+            B.placeTown(placements[i], false);
+
+            // Update cannons
+            B.updateCannons();
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Determine scores
+            scores[i] = -NegaMaxAlphaBetaSearch(B, this.searchDepth - 1, alpha, beta, playerOne, playerTwo, -1, true, false);
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Remove town
+            B.removeTown(placements[i]);
+        }
+
+        // Return scores of placements
+        return scores;
+    }
+
+    // Reset TT
+    public override void resetTT()
+    {
+        this.TT.reset();
+    }
+
+    // Set weights (for GA)
+    public override void setWeights(int[] wghts)
+    {
+        this.weights = wghts;
+        this.evalBound = getBoundsEval(wghts);
+    }
+}
+
+// Iterative Deepening with move ordering (Iterative Deepening, TT, Knowledge)
+internal class ID_TT : Player
+{
+    // Initiliaze everything needed
+    // General (Iterative Deepening)
+    int searchDepth;
+    int seenNodes = 0;
+    Stopwatch sw = new Stopwatch();
+    int evalBound;
+    int[] scores;
+    int maxTime;
+    bool printIterations;
+    List<Move> moves = new List<Move>();
+    int[] weights = new int[] { 2, 1, 3, 100, 2, -2, -1, -1, -10, 2, 1 };
+
+    // Move ordering
+    TranspositionTable TT;
+
+    public ID_TT(int id, int searchTimeMs, int lengthHashKey, bool printIterations)
+    {
+        // Initiliase
+        // General (Iterative Deepening)
+        this.playerId = id;
+        this.maxTime = searchTimeMs;
+        this.printIterations = printIterations;
+        this.evalBound = this.getBoundsEval(this.weights);
+
+        // TT
+        this.TT = new TranspositionTable(lengthHashKey);
+    }
+
+    public override void makeMove(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start Stopwatch
+        sw.Restart(); sw.Start();
+
+        // Determine moves and order on knowledge
+        this.moves = B.getPossibleMoves(this.playerId).orderByMoveType();
+        this.scores = new int[moves.Count()];
+
+        // Reset node counter
+        this.seenNodes = 0;
+        // If there are moves left
+        if (moves.Count() > 0)
+        {
+            // Initialise
+            int nrOfNodes = 0;
+            int actualDepth = 0;
+            this.seenNodes = 0;
+            this.searchDepth = 1;
+            this.scores = new int[this.moves.Count()];
+            Move bestMove = moves[0];
+
+            // While time left
+            while (this.sw.ElapsedMilliseconds < this.maxTime && this.scores.Max() < this.evalBound && this.scores.Max() > -this.evalBound)
+            {
+                // Order this.moves on scores of previous search
+                this.moves = orderMovesScore(this.moves, this.scores);
+
+                // Reset scores and killermoves
+                this.scores.setAll(-this.evalBound);
+
+                // Determine scores (NegaMax)
+                NegaMaxAlphaBetaSearch(B, this.searchDepth, -this.evalBound, this.evalBound, playerOne, playerTwo, 1, false, false);
+
+                // Replace the oldScores with new scores (if enough time is left, otherwise score isn't complete -> needs complicated look at)
+                if (this.sw.ElapsedMilliseconds < this.maxTime)
+                {
+                    bestMove = this.moves[this.scores.argMax()];
+                    actualDepth = this.searchDepth;
+                    nrOfNodes = this.seenNodes;
+
+                    // Print time per iteration
+                    if (this.printIterations)
+                    {
+                        // Print performance
+                        Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+                    }
+                }
+                else
+                {
+                    // If it isn't entireyly searched
+                    // Check the value we would get for choosing the first one
+                    int bestVal = this.scores[0];
+                    int i = 1;
+
+                    // If this one is searched entirely (next one is not equal to -this.evalBound)
+                    // Check if this is better than the move we choose to make (at the previous depth)
+                    while (i + 1 < this.scores.Length && this.scores[i + 1] > -this.evalBound)
+                    {
+                        // If it is better, save it
+                        if (this.scores[i] > bestVal)
+                        {
+                            bestMove = this.moves[i];
+                            actualDepth = this.searchDepth;
+                            nrOfNodes = this.seenNodes;
+                        }
+
+                        i++;
+                    }
+                }
+
+                // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+                this.searchDepth++;
+                B.updateCannons();
+            }
+
+            // Stop stopwatch
+            sw.Stop();
+
+            //Print nodes evaluated
+            if (printIterations)
+                Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+            // Make best move
+            B.movePiece(bestMove, print, false, true, false);
+        }
+        // No legal moves is loss.
+        else
+        {
+            this.NoLegalMoves();
+        }
+    }
+
+    int NegaMaxAlphaBetaSearch(Board B, int depth, int Alpha, int Beta, Player playerOne, Player playerTwo, int color, bool placeTown, bool lastNullMove)
+    {
+        // Keep track of number of nodes seen
+        this.seenNodes++;
+
+        // Transposition Table look up
+        int olda = Alpha;
+        TTEntry entry = this.TT.retrieve(B.getCurrentHashKey(), B.getCurrentHashValue());
+        // If position is new, depth = -1 (initial value of TTEntry)
+        if (entry.depth >= depth && depth >= 0)
+        {
+            if (entry.type == TTEntry.flag.exact)
+                return entry.value;
+            else if (entry.type == TTEntry.flag.lowerBound)
+                Alpha = Math.Max(Alpha, entry.value);
+            else if (entry.type == TTEntry.flag.upperBound)
+                Beta = Math.Min(Beta, entry.value);
+            if (Alpha >= Beta)
+                return entry.value;
+        }
+
+        // If town is removes -> win (terminal)
+        if (!placeTown && !B.TownsInGame()) { return B.TownInGame(this.playerId) ? this.evalBound * color : -this.evalBound * color; }
+        // If threefold -> draw (terminal)
+        if (B.getMaxFolds() == 3) { return (-this.evalBound + 1) * color; }
+        // If leafnode , return evaluate
+        if (depth <= 0) { return this.Evaluate(B, this.weights) * color; }
+
+        // Get currentId
+        int currentPlayerId = B.getCurrentPlayer().getPlayerId();
+
+        // Ordering moves correctly
+        List<Move> possibleMoves;
+        if (depth == this.searchDepth)
+            possibleMoves = this.moves;
+        else
+            possibleMoves = orderMoves(B.getPossibleMoves(currentPlayerId), entry.bestMove);
+
+        // Initialise for search
+        int value = -this.evalBound - 1;
+        int bestValue = value;
+        int bestValueIndex = -1;
+
+        // If moves left
+        if (possibleMoves.Count() > 0)
+        {
+            // Look at all moves
+            for (int i = 0; i < possibleMoves.Count(); i++)
+            {
+                // Determine value
+                value = simulateMove(B, possibleMoves[i], depth, Alpha, Beta, currentPlayerId, playerOne, playerTwo, color, placeTown);
+
+                // If it is at our search depth, and isn't during placement, add score to list
+                if (!placeTown && depth == this.searchDepth)
+                {
+                    this.scores[i] = value;
+                }
+
+                // Check if value is higher (better move)
+                if (value > bestValue)
+                {
+                    bestValue = value;
+                    bestValueIndex = i;
+
+                    // Check if it is higher than Alpha
+                    if (bestValue > Alpha)
+                    {
+                        Alpha = bestValue;
+
+                        // Check if Alpha >= Beta, such that we can prune
+                        if (Alpha >= Beta)
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                // If no time less, break
+                if (this.sw.ElapsedMilliseconds > this.maxTime)
+                    break;
+            }
+
+            // Store entry in TT
+            TTEntry.flag flagType;
+            if (bestValue <= olda) { flagType = TTEntry.flag.upperBound; }
+            else if (bestValue >= Beta) { flagType = TTEntry.flag.lowerBound; }
+            else { flagType = TTEntry.flag.exact; }
+
+            // Set entry
+            this.TT.setEntry(B.getCurrentHashKey(), bestValue, flagType, possibleMoves[bestValueIndex],
+                depth, B.getCurrentHashValue());
+
+            // Return value
+            return bestValue;
+        }
+        else
+        {
+            // No move left is loss
+            return -this.evalBound; // No color, looking from current perspective
+        }
+    }
+
+    public override void placeTown(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start sw
+        sw.Restart(); sw.Start();
+
+        // Get placements
+        List<Coord> placements = B.getPossiblePlacements(B.getCurrentPlayer().getPlayerId());
+
+        // Initialise
+        int nrOfNodes = 0;
+        int actualDepth = 0;
+        this.seenNodes = 0;
+        this.searchDepth = 1;
+        int[] scores = new int[placements.Count()];
+        Coord bestPlacement = placements[0];
+
+        while (this.sw.ElapsedMilliseconds < this.maxTime && scores.Max() < this.evalBound && scores.Max() > -this.evalBound)
+        {
+            // Order placements
+            placements = orderPlacements(placements, scores);
+
+            // Reset scores and killermoves
+            scores.setAll(-this.evalBound);
+
+            // Determine scores
+            scores = simulatePlacements(B, placements, -this.evalBound, this.evalBound, playerOne, playerTwo);
+
+            // Print time per iteration
+            if (this.printIterations)
+            {
+                // Print performance
+                Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+            }
+
+            // Get best placement (if enough time is left, otherewise score isn't complete)
+            if (this.sw.ElapsedMilliseconds < this.maxTime)
+            {
+                bestPlacement = placements[scores.argMax()];
+                actualDepth = searchDepth;
+                nrOfNodes = this.seenNodes;
+            }
+
+            // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+            this.searchDepth++;
+            B.updateCannons();
+        }
+
+        // Stop stopwatch
+        this.sw.Stop();
+
+        // Print nodes evaluated
+        if (printIterations)
+            Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+        // Make best move
+        B.placeTown(bestPlacement, print);
+    }
+
+    int simulateMove(Board B, Move move, int depth, int Alpha, int Beta, int currentPlayerId, Player playerOne, Player playerTwo, int color, bool placeTown)
+    {
+        // Check if to position is town (when captured or shoot)
+        bool isTown = false;
+        if ((move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture) &&
+            B.getSpaces()[move.To.x, move.To.y].getPieceType() == Piece.epieceType.town)
+            isTown = true;
+
+        // Make Move (and update hash)
+        B.movePiece(move, false, placeTown, false, isTown);
+
+        // Update Cannons
+        B.updateCannons();
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Get value
+        int value = -NegaMaxAlphaBetaSearch(B, depth - 1, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, false);
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Undo Move        
+        B.UndoMove(move, placeTown, isTown);
+
+        return value;
+    }
+
+    int[] simulatePlacements(Board B, List<Coord> placements, int alpha, int beta, Player playerOne, Player playerTwo)
+    {
+        int[] scores = new int[placements.Count()];
+        for (int i = 0; i < placements.Count(); i++)
+        {
+            // Place town
+            B.placeTown(placements[i], false);
+
+            // Update cannons
+            B.updateCannons();
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Determine scores
+            scores[i] = -NegaMaxAlphaBetaSearch(B, this.searchDepth - 1, alpha, beta, playerOne, playerTwo, -1, true, false);
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Remove town
+            B.removeTown(placements[i]);
+        }
+
+        // Return scores of placements
+        return scores;
+    }
+
+    // Reset TT
+    public override void resetTT()
+    {
+        this.TT.reset();
+    }
+
+    // Set weights (for GA)
+    public override void setWeights(int[] wghts)
+    {
+        this.weights = wghts;
+        this.evalBound = getBoundsEval(wghts);
+    }
+}
+
+// Iterative Deepening with move ordering (Iterative Deepening, Knowledge)
+internal class IterativeDeepening : Player
+{
+    // Initiliaze everything needed
+    // General (Iterative Deepening)
+    int searchDepth;
+    int seenNodes = 0;
+    Stopwatch sw = new Stopwatch();
+    int evalBound;
+    int[] scores;
+    int maxTime;
+    bool printIterations;
+    List<Move> moves = new List<Move>();
+    int[] weights = new int[] { 2, 1, 3, 100, 2, -2, -1, -1, -10, 2, 1 };
+
+    public IterativeDeepening(int id, int searchTimeMs, bool printIterations)
+    {
+        // Initiliase
+        // General (Iterative Deepening)
+        this.playerId = id;
+        this.maxTime = searchTimeMs;
+        this.printIterations = printIterations;
+        this.evalBound = this.getBoundsEval(this.weights);
+    }
+
+    public override void makeMove(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start Stopwatch
+        sw.Restart(); sw.Start();
+
+        // Determine moves and order on knowledge
+        this.moves = B.getPossibleMoves(this.playerId).orderByMoveType();
+        this.scores = new int[moves.Count()];
+
+        // Reset node counter
+        this.seenNodes = 0;
+        // If there are moves left
+        if (moves.Count() > 0)
+        {
+            // Initialise
+            int nrOfNodes = 0;
+            int actualDepth = 0;
+            this.seenNodes = 0;
+            this.searchDepth = 1;
+            this.scores = new int[this.moves.Count()];
+            Move bestMove = moves[0];
+
+            // While time left
+            while (this.sw.ElapsedMilliseconds < this.maxTime && this.scores.Max() < this.evalBound && this.scores.Max() > -this.evalBound)
+            {
+                // Order this.moves on scores of previous search
+                this.moves = orderMovesScore(this.moves, this.scores);
+
+                // Reset scores and killermoves
+                this.scores.setAll(-this.evalBound);
+
+                // Determine scores (NegaMax)
+                NegaMaxAlphaBetaSearch(B, this.searchDepth, -this.evalBound, this.evalBound, playerOne, playerTwo, 1, false, false);
+
+                // Replace the oldScores with new scores (if enough time is left, otherwise score isn't complete -> needs complicated look at)
+                if (this.sw.ElapsedMilliseconds < this.maxTime)
+                {
+                    bestMove = this.moves[this.scores.argMax()];
+                    actualDepth = this.searchDepth;
+                    nrOfNodes = this.seenNodes;
+
+                    // Print time per iteration
+                    if (this.printIterations)
+                    {
+                        // Print performance
+                        Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+                    }
+                }
+                else
+                {
+                    // If it isn't entireyly searched
+                    // Check the value we would get for choosing the first one
+                    int bestVal = this.scores[0];
+                    int i = 1;
+
+                    // If this one is searched entirely (next one is not equal to -this.evalBound)
+                    // Check if this is better than the move we choose to make (at the previous depth)
+                    while (i + 1 < this.scores.Length && this.scores[i + 1] > -this.evalBound)
+                    {
+                        // If it is better, save it
+                        if (this.scores[i] > bestVal)
+                        {
+                            bestMove = this.moves[i];
+                            actualDepth = this.searchDepth;
+                            nrOfNodes = this.seenNodes;
+                        }
+
+                        i++;
+                    }
+                }
+
+                // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+                this.searchDepth++;
+                B.updateCannons();
+            }
+
+            // Stop stopwatch
+            sw.Stop();
+
+            //Print nodes evaluated
+            if (printIterations)
+                Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+            // Make best move
+            B.movePiece(bestMove, print, false, true, false);
+        }
+        // No legal moves is loss.
+        else
+        {
+            this.NoLegalMoves();
+        }
+    }
+
+    int NegaMaxAlphaBetaSearch(Board B, int depth, int Alpha, int Beta, Player playerOne, Player playerTwo, int color, bool placeTown, bool lastNullMove)
+    {
+        // Keep track of number of nodes seen
+        this.seenNodes++;
+
+        // If town is removes -> win (terminal)
+        if (!placeTown && !B.TownsInGame()) { return B.TownInGame(this.playerId) ? this.evalBound * color : -this.evalBound * color; }
+        // If threefold -> draw (terminal)
+        if (B.getMaxFolds() == 3) { return (-this.evalBound + 1) * color; }
+        // If leafnode , return evaluate
+        if (depth <= 0) { return this.Evaluate(B, this.weights) * color; }
+
+        // Get currentId
+        int currentPlayerId = B.getCurrentPlayer().getPlayerId();
+
+        // Ordering moves correctly
+        List<Move> possibleMoves;
+        if (depth == this.searchDepth)
+            possibleMoves = this.moves;
+        else
+            possibleMoves = B.getPossibleMoves(currentPlayerId).orderByMoveType();
+
+        // Initialise for search
+        int value = -this.evalBound - 1;
+        int bestValue = value;
+
+        // If moves left
+        if (possibleMoves.Count() > 0)
+        {
+            // Look at all moves
+            for (int i = 0; i < possibleMoves.Count(); i++)
+            {
+                // Determine value
+                value = simulateMove(B, possibleMoves[i], depth, Alpha, Beta, currentPlayerId, playerOne, playerTwo, color, placeTown);
+
+                // If it is at our search depth, and isn't during placement, add score to list
+                if (!placeTown && depth == this.searchDepth)
+                {
+                    this.scores[i] = value;
+                }
+
+                // Check if value is higher (better move)
+                if (value > bestValue)
+                {
+                    bestValue = value;
+
+                    // Check if it is higher than Alpha
+                    if (bestValue > Alpha)
+                    {
+                        Alpha = bestValue;
+
+                        // Check if Alpha >= Beta, such that we can prune
+                        if (Alpha >= Beta)
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                // If no time less, break
+                if (this.sw.ElapsedMilliseconds > this.maxTime)
+                    break;
+            }
+
+            // Return value
+            return bestValue;
+        }
+        else
+        {
+            // No move left is loss
+            return -this.evalBound; // No color, looking from current perspective
+        }
+    }
+
+    public override void placeTown(Board B, bool print, Player playerOne, Player playerTwo)
+    {
+        // Start sw
+        sw.Restart(); sw.Start();
+
+        // Get placements
+        List<Coord> placements = B.getPossiblePlacements(B.getCurrentPlayer().getPlayerId());
+
+        // Initialise
+        int nrOfNodes = 0;
+        int actualDepth = 0;
+        this.seenNodes = 0;
+        this.searchDepth = 1;
+        int[] scores = new int[placements.Count()];
+        Coord bestPlacement = placements[0];
+
+        while (this.sw.ElapsedMilliseconds < this.maxTime && scores.Max() < this.evalBound && scores.Max() > -this.evalBound)
+        {
+            // Order placements
+            placements = orderPlacements(placements, scores);
+
+            // Reset scores and killermoves
+            scores.setAll(-this.evalBound);
+
+            // Determine scores
+            scores = simulatePlacements(B, placements, -this.evalBound, this.evalBound, playerOne, playerTwo);
+
+            // Print time per iteration
+            if (this.printIterations)
+            {
+                // Print performance
+                Console.WriteLine($"Depth: {this.searchDepth}. Nodes seen: {this.seenNodes}. Time: {this.sw.ElapsedMilliseconds} [ms].");
+            }
+
+            // Get best placement (if enough time is left, otherewise score isn't complete)
+            if (this.sw.ElapsedMilliseconds < this.maxTime)
+            {
+                bestPlacement = placements[scores.argMax()];
+                actualDepth = searchDepth;
+                nrOfNodes = this.seenNodes;
+            }
+
+            // End -> add One search depth, and update cannons, such that new possible moves (next depth) can be determined correctly
+            this.searchDepth++;
+            B.updateCannons();
+        }
+
+        // Stop stopwatch
+        this.sw.Stop();
+
+        // Print nodes evaluated
+        if (printIterations)
+            Console.WriteLine($"Nodes evaluated: {nrOfNodes} at depth {actualDepth}. In {this.sw.ElapsedMilliseconds} [ms].");
+
+        // Make best move
+        B.placeTown(bestPlacement, print);
+    }
+
+    int simulateMove(Board B, Move move, int depth, int Alpha, int Beta, int currentPlayerId, Player playerOne, Player playerTwo, int color, bool placeTown)
+    {
+        // Check if to position is town (when captured or shoot)
+        bool isTown = false;
+        if ((move.type == Move.moveType.shoot || move.type == Move.moveType.soldierCapture) &&
+            B.getSpaces()[move.To.x, move.To.y].getPieceType() == Piece.epieceType.town)
+            isTown = true;
+
+        // Make Move (and update hash)
+        B.movePiece(move, false, placeTown, false, isTown);
+
+        // Update Cannons
+        B.updateCannons();
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Get value
+        int value = -NegaMaxAlphaBetaSearch(B, depth - 1, -Beta, -Alpha, playerOne, playerTwo, color * -1, placeTown, false);
+
+        // Switch player
+        B.switchPlayer(playerOne, playerTwo);
+
+        // Undo Move        
+        B.UndoMove(move, placeTown, isTown);
+
+        return value;
+    }
+
+    int[] simulatePlacements(Board B, List<Coord> placements, int alpha, int beta, Player playerOne, Player playerTwo)
+    {
+        int[] scores = new int[placements.Count()];
+        for (int i = 0; i < placements.Count(); i++)
+        {
+            // Place town
+            B.placeTown(placements[i], false);
+
+            // Update cannons
+            B.updateCannons();
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Determine scores
+            scores[i] = -NegaMaxAlphaBetaSearch(B, this.searchDepth - 1, alpha, beta, playerOne, playerTwo, -1, true, false);
+
+            // Switch player
+            B.switchPlayer(playerOne, playerTwo);
+
+            // Remove town
+            B.removeTown(placements[i]);
+        }
+
+        // Return scores of placements
+        return scores;
+    }
+
+    // Reset TT
+    public override void resetTT()
+    {
+    }
+
+    // Set weights (for GA)
+    public override void setWeights(int[] wghts)
+    {
+        this.weights = wghts;
+        this.evalBound = getBoundsEval(wghts);
     }
 }

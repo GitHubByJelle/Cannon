@@ -44,43 +44,15 @@ namespace World
 
             // Set players
             //playerOne = new Human(1);
-            //playerOne = new NegaMaxAlphaBetaTT3(1, 3, 20);
-            //playerOne = new IterativeDeepeningSimple(1, 5000, 20, true);
-            //playerOne = new IterativeDeepening2(1, 5000, 20, true);
-            //playerOne = new IterativeDeepeningHH(1, 5000, 20, true);
-            //playerOne = new IterativeDeepeningNegaScout(1, 5000, 20, true);
-            //playerOne = new xIterativeDeepeningOrdered(1, 5000, 20, true);
-            //playerOne = new xIterativeDeepening(1, 1000, true);
-            //playerOne = new xIterativeDeepeningAS(1, 5000, 20, 11, true);
-            //playerOne = new xIterativeDeepeningNM(1, 5000, 20, 11, 2, true);
-            //playerOne = new xIterativeDeepeningNMMC(1, 5000, 20, 11, 2, 5, 10, true);
-            //playerOne = new xIterativeDeepeningFullNSLast(1, 1000, 20, 2, 5, 10, true);
-            //playerOne = new xIterativeDeepeningFullNSLast(1, 5000, 20, 2, 5, 10, true);
-            //playerOne = new xIterativeDeepeningFullNSLast(1, 5000, 20, 2, 5, 10, true);
-            //playerOne = new xIterativeDeepeningFullASLast(1, 10, 20, 11, 2, 5, 10, false);
-            playerOne = new xIterativeDeepeningFullASLast(1, 5000, 20, 11, 2, 5, 10, true);
-            //playerOne = new xIterativeDeepeningOrdered(1, 5000, 20, true);
-            //playerOne = new xIterativeDeepeningAS(1, 5000, 20, 11, true);
             //playerOne = new RandomBot(1);
-            //playerOne = new cIterativeDeepeningFullNSLast(1, 1000, 20, 2, 5, 10, true);
-            //playerOne = new NegaMaxAlphaBetaTT(1, 4, 20);
-            //playerOne = new NegaMax2(1, 3);
-            //playerOne = new RandomBot(1);
-            //playerOne = new NegaMaxAlphaBetaTT(1, 3, 20);
-            playerTwo = new xIterativeDeepeningFullASLast(2, 5000, 20, 11, 2, 5, 10, true);
-            //playerTwo = new xIterativeDeepeningFullNSLast(2, 5000, 20, 2, 5, 10, true);
-            //playerOne = new IterativeDeepeningPlus(1, 4000, 20, true);
-            //playerTwo = new IterativeDeepeningHH(2, 5000, 20, true);
-            //playerTwo = new IterativeDeepening(2, 20000, 20, true);
-            //playerTwo = new xIterativeDeepening(2, 1000, true);
-            //playerTwo = new RandomBot(2);
-            //playerTwo = new xIterativeDeepeningFullASLast(2, 5000, 20, 11, 2, 5, 10, true);
-            //playerTwo = new Human(2);
-            //playerTwo = new xIterativeDeepeningFullNSLast(2, 5000, 20, 2, 5, 10, true);
-            //playerTwo = new IterativeDeepeningSimple(2, 5000, 20, true);
-            //playerTwo = new NegaMaxAlphaBetaTT3(2, 3, 20);
-            //playerTwo = new NegaMaxAlphaBeta(2, 2);
-            //playerTwo = new IterativeDeepening(2, 2000, 20, true);
+            //playerOne = new OptimizedAS(1, 5000, 20, 11, 2, 5, 10, true);
+            //playerOne = new OrderedPVS(1, 5000, 20, true);
+            //playerOne = new ID_TT_KM(1, 5000, 20, true);
+            playerOne = new IterativeDeepening(1, 5000, true);
+            //playerTwo = new AS_FP_NL(2, 5000, 20, 11, 2, true);
+            //playerTwo = new OrderedAS(2, 5000, 20, 11, true);
+            //playerTwo = new OrderedID(2, 5000, 20, true);
+            playerTwo = new ID_TT(2, 5000, 20, true);
 
             // Set currentplayer
             B.setCurrentPlayer(playerOne);
@@ -182,7 +154,7 @@ namespace World
                 //return new xIterativeDeepening(id, 5000, true);
                 return new RandomBot(id);
             else
-                return new xIterativeDeepeningFullASLast(id, 5000, 20, 11, 2, 5, 10, true);
+                return new OptimizedAS(id, 5000, 20, 11, 2, 5, 10, true);
 
         }
 
