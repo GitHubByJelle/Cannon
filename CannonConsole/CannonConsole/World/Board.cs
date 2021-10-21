@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
+using TT;
 using World;
 
 public struct Move
@@ -136,6 +136,8 @@ public class Board
     int[,] adjDir = new int[,] { { 0, 1 }, { 1, 1 }, { 1, 0 }, { 1, -1 }, { 0, -1 }, { -1, -1 }, { -1, 0 }, { -1, 1 }, };
     List<Move> allMoves = new List<Move>();
 
+    ulong currentHash;
+    ZobristHashing zH = new ZobristHashing(20);
     Dictionary<ulong, int> visitedStates = new Dictionary<ulong, int>();
     List<Move> moveList = new List<Move>();
     public string FEN;
@@ -173,35 +175,6 @@ public class Board
         determineCannons();
     }
 
-    //public void mirrorBoard()
-    //{
-    //    // Mirror board, set enemy to player, and player to enemy (switch pieceId (for debugging only)). 
-        
-    //    // Replace pieces
-    //    for (int i = 0; i < PiecesCoords.Count(); i++)
-    //    {
-    //        Piece.epieceType type = Spaces[PiecesCoords[i].x, PiecesCoords[i].y].getPieceType();
-    //        int id = Spaces[PiecesCoords[i].x, PiecesCoords[i].y].getPieceId() == 1 ? 2 : 1;
-    //        Spaces[PiecesCoords[i].x, PiecesCoords[i].y].removePiece();
-    //        Spaces[PiecesCoords[i].x, PiecesCoords[i].y].setPiece(id,type);
-    //    }
-
-    //    // Replace town (switch in towncoords)
-    //    int[][] newTownCoords = new int[2][];
-    //    newTownCoords[0] = TownCoords[1];
-    //    newTownCoords[1] = TownCoords[0];
-    //    TownCoords = newTownCoords;
-
-    //    // Swicth id
-    //    for (int playerId = 1; playerId < 3; playerId++)
-    //    {
-    //        Piece.epieceType type = Spaces[TownCoords[playerId-1][0], TownCoords[playerId - 1][1]].getPieceType();
-    //        int id = Spaces[TownCoords[playerId - 1][0], TownCoords[playerId - 1][1]].getPieceId() == 1 ? 2 : 1;
-    //        Spaces[TownCoords[playerId - 1][0], TownCoords[playerId - 1][1]].removePiece();
-    //        Spaces[TownCoords[playerId - 1][0], TownCoords[playerId - 1][1]].setPiece(id, type);
-    //    }
-    //}
-
     public Space[,] getSpaces()
     {
         return this.Spaces;
@@ -221,6 +194,12 @@ public class Board
                 Spaces[i, j] = new Space(coordsToName(i, j), i, j);
             }
         }
+    }
+
+    internal void createInitialHash()
+    {
+        this.currentHash = this.zH.generateBoardHash(this);
+        updateVisitedState(this.currentHash);
     }
 
     void setPieces(int playerId)
@@ -445,7 +424,6 @@ public class Board
     public List<Move> getPossibleMoves(int playerId)
     {
         this.allMoves.Clear();
-        this.PiecesCoords = this.PiecesCoords.OrderBy(x => x.x).ThenBy(x => x.y).ToList();
         for (int i = 0; i < PiecesCoords.Count(); i++)
         {
             if (this.Spaces[PiecesCoords[i].x, PiecesCoords[i].y].getPieceId() == playerId)
@@ -1305,8 +1283,14 @@ public class Board
         return placements;
     }
 
-    public void movePiece(Move move, bool print, bool placeTown, bool realMove)
+    public void movePiece(Move move, bool print, bool placeTown, bool realMove, bool isTown)
     {
+        // Update hash
+        //Console.WriteLine("Make Move");
+        //Console.WriteLine(this.currentHash);
+        this.currentHash = this.zH.makeMoveHash(this.currentHash, move, this.currentPlayer.getPlayerId(), isTown);
+        //Console.WriteLine(this.currentHash);Console.WriteLine();
+
         // Take the piece (on from)
         Piece p = this.Spaces[move.From.x, move.From.y].getPiece();
 
@@ -1337,11 +1321,17 @@ public class Board
             this.PiecesCoords.Add(new Coord(move.To.x, move.To.y));
         }
 
+        // Keep track of the visited states
+        updateVisitedState(this.currentHash);
+
+        // If it is a real move, add it to the list (to be able to do undo move)
         if (realMove)
         {
             this.moveList.Add(move);
+            //this.visitedStates.Keys.ToList().ForEach(x => Console.Write($"{x} ")); Console.WriteLine();
         }
 
+        // Print results
         if (print)
         {
             printMove(move);
@@ -1350,8 +1340,17 @@ public class Board
         }
     }
 
-    public void UndoMove(Move move, bool placeTown)
+    public void UndoMove(Move move, bool placeTown, bool isTown)
     {
+        //Console.WriteLine("Undo Move");
+        //Console.WriteLine(this.currentHash);
+        // Remove visit of that board
+        removeVisitedState(this.currentHash);
+
+        // Update currentHash
+        this.currentHash = this.zH.undoMoveHash(this.currentHash, move, this.currentPlayer.getPlayerId(), isTown);
+        //Console.WriteLine(this.currentHash); Console.WriteLine();
+
         // Replace piece
         Piece.epieceType pType = Piece.epieceType.soldier;
 
@@ -1391,8 +1390,8 @@ public class Board
     public void undoMoveList()
     {
         // Reset last two moves
-        UndoMove(this.moveList[this.moveList.Count() - 1], false);
-        UndoMove(this.moveList[this.moveList.Count() - 2], false);
+        UndoMove(this.moveList[this.moveList.Count() - 1], false, false);
+        UndoMove(this.moveList[this.moveList.Count() - 2], false, false);
         this.moveList.RemoveAt(this.moveList.Count() - 1);
         this.moveList.RemoveAt(this.moveList.Count() - 1);
     }
@@ -1651,13 +1650,80 @@ public class Board
             this.currentPlayer = playerOne;
         else
             this.currentPlayer = playerTwo;
+
+        // Get Hash
+        this.currentHash = this.zH.generateBoardHash(this);
+    }
+
+    public void updateVisitedState(ulong hash)
+    {
+        // Always save from perspective of same player, because this is the same board (three fold doesn't care about player turn)
+        if (this.currentPlayer.getPlayerId() == 2)
+            hash = this.zH.switchPlayer(hash);
+
+        //Console.WriteLine($"Add: {hash}");
+        if (this.visitedStates.ContainsKey(hash))
+            this.visitedStates[hash]++;
+        else
+            this.visitedStates.Add(hash, 1);
+
+        //this.visitedStates.Keys.ToList().ForEach(x => Console.Write($"{x} ")); Console.WriteLine();
+        //Console.WriteLine(this.visitedStates.Values.Max());
+
+        if (this.visitedStates.Values.Max() == 3)
+        {
+            int test = 0;
+        }
+    }
+
+    public void removeVisitedState(ulong hash)
+    {
+        // Always save from perspective of same player, because this is the same board (three fold doesn't care about player turn)
+        if (this.currentPlayer.getPlayerId() == 2)
+            hash = this.zH.switchPlayer(hash);
+
+        //Console.WriteLine($"Remove: {hash}");
+        this.visitedStates[hash]--;
+
+        if (this.visitedStates[hash] == 0)
+            this.visitedStates.Remove(hash);
+    }
+
+    public int getMaxFolds()
+    {
+        return this.visitedStates.Values.Max();
     }
 
     public void switchPlayer(Player playerOne, Player playerTwo)
     {
+        // Update hash
+        this.currentHash = this.zH.switchPlayer(this.currentHash);
+
+        // Switch players
         if (this.currentPlayer.getPlayerId() == playerOne.getPlayerId())
             this.currentPlayer = playerTwo;
         else
             this.currentPlayer = playerOne;
+    }
+
+    //public void setCurrentHash(ulong hash)
+    //{
+    //    this.currentHash = hash;
+    //    updateVisitedState(hash);
+    //}
+
+    public ulong getCurrentHash()
+    {
+        return this.currentHash;
+    }
+
+    public ulong getCurrentHashKey()
+    {
+        return this.zH.getHashKey(this.currentHash);
+    }
+
+    public ulong getCurrentHashValue()
+    {
+        return this.zH.getHashValue(this.currentHash);
     }
 }

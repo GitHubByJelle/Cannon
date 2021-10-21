@@ -36,7 +36,7 @@ namespace TT
                 }
             }
 
-            // Create random ulong for players
+            //// Create random ulong for players
             this.playerR = new ulong[2];
 
             for (int i = 0; i < 2; i++)
@@ -109,7 +109,7 @@ namespace TT
                 int movePiece = (currentPlayerId << 1) - 2;
 
                 // Remove piece on to spot
-                oldHash ^= this.r[movePiece, positionToIndex(move.To.x, move.To.x)];
+                oldHash ^= this.r[movePiece, positionToIndex(move.To.x, move.To.y)];
 
                 // Add piece on from spot
                 oldHash ^= this.r[movePiece, positionToIndex(move.From.x, move.From.y)];

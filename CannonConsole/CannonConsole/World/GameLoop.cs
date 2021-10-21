@@ -36,7 +36,7 @@ namespace World
             return this.playerTwo;
         }
 
-        void setup()
+        public void setup()
         {
             // Setup board
             B = new Board();
@@ -50,7 +50,7 @@ namespace World
             //playerOne = new IterativeDeepeningHH(1, 5000, 20, true);
             //playerOne = new IterativeDeepeningNegaScout(1, 5000, 20, true);
             //playerOne = new xIterativeDeepeningOrdered(1, 5000, 20, true);
-            //playerOne = new xIterativeDeepening(1, 1000, false);
+            //playerOne = new xIterativeDeepening(1, 1000, true);
             //playerOne = new xIterativeDeepeningAS(1, 5000, 20, 11, true);
             //playerOne = new xIterativeDeepeningNM(1, 5000, 20, 11, 2, true);
             //playerOne = new xIterativeDeepeningNMMC(1, 5000, 20, 11, 2, 5, 10, true);
@@ -58,7 +58,7 @@ namespace World
             //playerOne = new xIterativeDeepeningFullNSLast(1, 5000, 20, 2, 5, 10, true);
             //playerOne = new xIterativeDeepeningFullNSLast(1, 5000, 20, 2, 5, 10, true);
             //playerOne = new xIterativeDeepeningFullASLast(1, 10, 20, 11, 2, 5, 10, false);
-            playerOne = new xIterativeDeepeningFullASLast(1, 1000, 20, 11, 2, 5, 10, true);
+            playerOne = new xIterativeDeepeningFullASLast(1, 5000, 20, 11, 2, 5, 10, true);
             //playerOne = new xIterativeDeepeningOrdered(1, 5000, 20, true);
             //playerOne = new xIterativeDeepeningAS(1, 5000, 20, 11, true);
             //playerOne = new RandomBot(1);
@@ -67,12 +67,12 @@ namespace World
             //playerOne = new NegaMax2(1, 3);
             //playerOne = new RandomBot(1);
             //playerOne = new NegaMaxAlphaBetaTT(1, 3, 20);
-            playerTwo = new xIterativeDeepeningFullASLast(2, 1000, 20, 11, 2, 5, 10, true);
+            playerTwo = new xIterativeDeepeningFullASLast(2, 5000, 20, 11, 2, 5, 10, true);
             //playerTwo = new xIterativeDeepeningFullNSLast(2, 5000, 20, 2, 5, 10, true);
             //playerOne = new IterativeDeepeningPlus(1, 4000, 20, true);
             //playerTwo = new IterativeDeepeningHH(2, 5000, 20, true);
             //playerTwo = new IterativeDeepening(2, 20000, 20, true);
-            //playerTwo = new xIterativeDeepening(2, 1000, false);
+            //playerTwo = new xIterativeDeepening(2, 1000, true);
             //playerTwo = new RandomBot(2);
             //playerTwo = new xIterativeDeepeningFullASLast(2, 5000, 20, 11, 2, 5, 10, true);
             //playerTwo = new Human(2);
@@ -84,6 +84,7 @@ namespace World
 
             // Set currentplayer
             B.setCurrentPlayer(playerOne);
+            B.createInitialHash();
         }
 
         void setupGUI()
@@ -111,6 +112,7 @@ namespace World
             {
                 this.B.setup();
                 B.setCurrentPlayer(playerOne);
+                B.createInitialHash();
             }
 
         }
@@ -177,7 +179,8 @@ namespace World
             else if (n == 2)
                 return new RandomBot(id);
             else if (n == 3)
-                return new xIterativeDeepening(id, 5000, true);
+                //return new xIterativeDeepening(id, 5000, true);
+                return new RandomBot(id);
             else
                 return new xIterativeDeepeningFullASLast(id, 5000, 20, 11, 2, 5, 10, true);
 
@@ -193,6 +196,7 @@ namespace World
                 this.playerTwo.setWeights(wghts);
 
             B.setCurrentPlayer(playerOne);
+            B.createInitialHash();
         }
 
         public void setupRandomBoard(int numPiecesOne, int numPiecesTwo, bool TownOne, bool TownTwo)
@@ -207,6 +211,7 @@ namespace World
 
             // Set currentplayer
             B.setCurrentPlayer(playerOne);
+            B.createInitialHash();
         }
 
         public void playGames(int numberOfGames, bool print)
@@ -377,14 +382,19 @@ namespace World
         public bool inGame()
         {
             if (this.B.getCurrentPlayer().getPlayerId() == 1)
-                return townsInGame() & this.playerTwo.LegalMoveLeft();
+                return townsInGame() & this.playerTwo.LegalMoveLeft() & !threeFold();
             else
-                return townsInGame() & this.playerOne.LegalMoveLeft();
+                return townsInGame() & this.playerOne.LegalMoveLeft() & !threeFold();
         }
 
         bool townsInGame()
         {
             return townInGame(1) && townInGame(2);
+        }
+
+        bool threeFold()
+        {
+            return this.B.getMaxFolds() == 3;
         }
 
         bool townInGame(int playerId)
@@ -400,6 +410,7 @@ namespace World
             else if (!townInGame(2) || !playerTwo.LegalMoveLeft())
                 winner = 1;
             else
+                // Threefold or to much moves
                 winner = 0;
 
             if (print)

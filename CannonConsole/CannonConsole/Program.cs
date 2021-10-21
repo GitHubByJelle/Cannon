@@ -14,7 +14,7 @@ namespace CannonConsole
         static void Main(string[] args)
         {
             //GA GenAlg = new GA(1, 16, 11, 10);
-            //GenAlg.run(100, 5);
+            //GenAlg.run(100, 3);
 
             //Console.ReadLine();
 
