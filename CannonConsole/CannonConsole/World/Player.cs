@@ -5388,7 +5388,7 @@ internal class IterativeDeepeningNoOrdering : Player
         sw.Restart(); sw.Start();
 
         // Determine moves and order on knowledge
-        this.moves = B.getPossibleMoves(this.playerId);
+        this.moves = B.getPossibleMoves(this.playerId).cloneList();
         this.scores = new int[moves.Count()];
 
         // Reset node counter
