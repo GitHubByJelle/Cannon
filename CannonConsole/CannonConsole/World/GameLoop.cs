@@ -142,6 +142,8 @@ namespace World
             for (int i = 0; i < selectedPlayerIds.GetLength(0); i++)
             {
                 playGamesPowerPoint(numOfGames, false, selectedPlayerIds[i,0], selectedPlayerIds[i,1]);
+
+                Console.WriteLine($"{i+1} of {selectedPlayerIds.GetLength(0)} completed.")
             }
         }
 
