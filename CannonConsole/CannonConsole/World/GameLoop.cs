@@ -20,7 +20,7 @@ namespace World
         public GameLoop(bool centralLoop)
         {
             if (centralLoop)
-                setupGUI();
+                setup();
         }
 
         public Board getBoard()
@@ -63,6 +63,20 @@ namespace World
             //playerTwo = new HeuristicBot(2, 0f);
             //playerTwo = new Human(2);
             //playerTwo = new OptimizedAS(2, 1000, 20, 11, 2, 5, 10, true);
+
+            // Set currentplayer
+            B.setCurrentPlayer(playerOne);
+            B.createInitialHash();
+        }
+
+        public void setupPlayer(int playerOneIdSelection, int playerTwoIdSelection)
+        {
+            // Setup board
+            B = new Board();
+            B.setup();
+
+            playerOne = loadPlayer(playerOneIdSelection, 1, 1000);
+            playerTwo = loadPlayer(playerOneIdSelection, 2, 1000);
 
             // Set currentplayer
             B.setCurrentPlayer(playerOne);
@@ -120,6 +134,17 @@ namespace World
                 return false;
         }
 
+        public void collectPowerPointData(int numOfGames, int[,] selectedPlayerIds)
+        {
+            // Create file for saving the data
+            File.Create("powerpointdata.txt").Dispose();
+
+            for (int i = 0; i < selectedPlayerIds.GetLength(0); i++)
+            {
+                playGamesPowerPoint(numOfGames, false, selectedPlayerIds[i,0], selectedPlayerIds[i,1]);
+            }
+        }
+
         private int[] askPlayers()
         {
             // Print intro text
@@ -159,15 +184,16 @@ namespace World
                 "1) Human.\n" +
                 "2) RandomBot (Easy).\n" +
                 "3) HeuristicBot (Epsilon greedy)\n" +
-                "4) Iterative Bot.\n" +
-                "5) Iterative Bot with TT.\n" +
-                "6) Iterative Bot with TT and KM.\n" +
-                "7) Ordered Iterative Bot (TT, KM and HH).\n" +
-                "8) Principal Variation Search / NegaScout.\n" +
-                "9) Aspiration Search.\n" +
-                "10) Aspiration Search with Fractional Plies and Null Moves.\n" +
-                "11) Aspiration Search (Variable Depth = Fractional Plies, Null Move and Multi-Cut).\n" +
-                "12) Aspiration Search using Monte Carlo Evaluation to adjust time (Variable Depth).\n");
+                "4) Iterative Bot (no ordering)" +
+                "5) Iterative Bot (ordering on knowledge).\n" +
+                "6) Iterative Bot with TT.\n" +
+                "7) Iterative Bot with TT and KM.\n" +
+                "8) Ordered Iterative Bot (TT, KM and HH).\n" +
+                "9) Principal Variation Search / NegaScout.\n" +
+                "10) Aspiration Search.\n" +
+                "11) Aspiration Search with Fractional Plies and Null Moves.\n" +
+                "12) Aspiration Search (Variable Depth = Fractional Plies, Null Move and Multi-Cut).\n" +
+                "13) Aspiration Search using Monte Carlo Evaluation to adjust time (Variable Depth).\n");
         }
 
         Player loadPlayer(int n, int id)
@@ -179,23 +205,62 @@ namespace World
             else if (n == 3)
                 return new HeuristicBot(id, .05f);
             else if (n == 4)
-                return new IterativeDeepening(id, 5000, true);
+                return new IterativeDeepeningNoOrdering(id, 5000, true);
             else if (n == 5)
-                return new ID_TT(id, 5000, 20, true);
+                return new IterativeDeepening(id, 5000, true);
             else if (n == 6)
-                return new ID_TT_KM(id, 5000, 20, true);
+                return new ID_TT(id, 5000, 20, true);
             else if (n == 7)
-                return new OrderedID(id, 5000, 20, true);
+                return new ID_TT_KM(id, 5000, 20, true);
             else if (n == 8)
-                return new OrderedPVS(id, 5000, 20, true);
+                return new OrderedID(id, 5000, 20, true);
             else if (n == 9)
-                return new OrderedAS(id, 5000, 20, 11, true);
+                return new OrderedPVS(id, 5000, 20, true);
             else if (n == 10)
-                return new AS_FP_NL(id, 5000, 20, 11, 2, true);
+                return new OrderedAS(id, 5000, 20, 11, true);
             else if (n == 11)
-                return new OptimizedAS(id, 5000, 20, 11, 2, 5, 10, true);
+                return new AS_FP_NL(id, 5000, 20, 11, 2, true);
             else if (n == 12)
+                return new OptimizedAS(id, 5000, 20, 11, 2, 5, 10, true);
+            else if (n == 13)
                 return new OptimizedASAdjust(id, 10 * 60 * 1000, 12000, 10, .05f, 20, 11, 2, 5, 10, true);
+
+            else
+            {
+                Console.WriteLine("That one didn't exist. Try again!");
+                return new Human(id);
+            }
+
+        }
+
+        Player loadPlayer(int n, int id, int timeSearch)
+        {
+            if (n == 1)
+                return new Human(id);
+            else if (n == 2)
+                return new RandomBot(id);
+            else if (n == 3)
+                return new HeuristicBot(id, .05f);
+            else if (n == 4)
+                return new IterativeDeepeningNoOrdering(id, timeSearch, false);
+            else if (n == 5)
+                return new IterativeDeepening(id, timeSearch, false);
+            else if (n == 6)
+                return new ID_TT(id, timeSearch, 20, false);
+            else if (n == 7)
+                return new ID_TT_KM(id, timeSearch, 20, false);
+            else if (n == 8)
+                return new OrderedID(id, timeSearch, 20, false);
+            else if (n == 9)
+                return new OrderedPVS(id, timeSearch, 20, false);
+            else if (n == 10)
+                return new OrderedAS(id, timeSearch, 20, 11, false);
+            else if (n == 11)
+                return new AS_FP_NL(id, timeSearch, 20, 11, 2, false);
+            else if (n == 12)
+                return new OptimizedAS(id, timeSearch, 20, 11, 2, 5, 10, false);
+            else if (n == 13)
+                return new OptimizedASAdjust(id, 10 * 60 * 1000, timeSearch, 10, .05f, 20, 11, 2, 5, 10, false);
 
             else
             {
@@ -263,6 +328,25 @@ namespace World
             }
 
             return wins;
+        }
+
+        public void playGamesPowerPoint(int numberOfGames, bool print, int playerOneSelection, int playerTwoSelection)
+        {
+            int[] wins = new int[3];
+            for (int num = 0; num < numberOfGames; num++)
+            {
+                // Set up the board 
+                setupPlayer(playerOneSelection, playerTwoSelection);
+
+                // Play a game
+                int winner = playGame(print);
+
+                // Fill in win
+                wins[winner]++;
+            }
+
+            // Add win to file
+            File.AppendAllText("powerpointdata.txt", $"{playerOne.GetType().Name} vs {playerOne.GetType().Name}: {wins[0]} - {wins[1]} - {wins[2]}\n");
         }
 
         public void playGames(int numberOfGames, bool print, bool analyses)
