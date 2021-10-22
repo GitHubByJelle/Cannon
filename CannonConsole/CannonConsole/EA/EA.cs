@@ -211,7 +211,7 @@ namespace EA
         public void run(int num_gen, int num_games)
         {
             // Set up game loop
-            GameLoop gl = new GameLoop();
+            GameLoop gl = new GameLoop(true);
 
             for (int gen = 1; gen < num_gen + 1; gen++)
             {

@@ -29,7 +29,7 @@ namespace CannonConsole
 
             //Console.ReadLine();
 
-            GameLoop GL = new GameLoop();
+            GameLoop GL = new GameLoop(true);
 
             GL.playGame(true);
 

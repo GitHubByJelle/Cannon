@@ -180,6 +180,11 @@ public class Board
         return this.Spaces;
     }
 
+    public List<Move> getMadeMoves()
+    {
+        return this.moveList;
+    }
+
     public string coordsToName(int i, int j)
     {
         return ((char)(i + 65)).ToString() + (j + 1);
@@ -1652,6 +1657,10 @@ public class Board
             this.currentPlayer = playerOne;
         else
             this.currentPlayer = playerTwo;
+
+        // Can't adjust time anymore
+        playerOne.adjustTime = false;
+        playerTwo.adjustTime = false;
 
         // Get Hash
         this.currentHash = this.zH.generateBoardHash(this);

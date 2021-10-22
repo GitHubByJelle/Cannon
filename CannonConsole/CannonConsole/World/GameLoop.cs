@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -16,9 +17,10 @@ namespace World
         int maxPly = 1000;
         bool startPhaseDone = false;
 
-        public GameLoop()
+        public GameLoop(bool centralLoop)
         {
-            setupGUI();
+            if (centralLoop)
+                setup();
         }
 
         public Board getBoard()
@@ -46,13 +48,17 @@ namespace World
             //playerOne = new Human(1);
             //playerOne = new RandomBot(1);
             //playerOne = new OptimizedAS(1, 5000, 20, 11, 2, 5, 10, true);
+            playerOne = new OptimizedASAdjust(1, 5*60*1000, 10000, 5, .05f, 20, 11, 2, 5, 10, true);
             //playerOne = new OrderedPVS(1, 5000, 20, true);
             //playerOne = new ID_TT_KM(1, 5000, 20, true);
-            playerOne = new IterativeDeepening(1, 5000, true);
+            //playerOne = new IterativeDeepening(1, 5000, true);
             //playerTwo = new AS_FP_NL(2, 5000, 20, 11, 2, true);
             //playerTwo = new OrderedAS(2, 5000, 20, 11, true);
             //playerTwo = new OrderedID(2, 5000, 20, true);
-            playerTwo = new ID_TT(2, 5000, 20, true);
+            //playerTwo = new ID_TT(2, 5000, 20, true);
+            //playerTwo = new HeuristicBot(2, 0f);
+            //playerTwo = new Human(2);
+            playerTwo = new OptimizedAS(2, 1000, 20, 11, 2, 5, 10, true);
 
             // Set currentplayer
             B.setCurrentPlayer(playerOne);
@@ -87,6 +93,14 @@ namespace World
                 B.createInitialHash();
             }
 
+        }
+
+        void setPlayer(int id, Player player)
+        {
+            if (id == 1)
+                playerOne = player;
+            else
+                playerTwo = player;
         }
 
         private bool askStart()
@@ -139,9 +153,17 @@ namespace World
                 "To start the game choose two players, by entering the integer in front of the options.\n\n" +
                 "Options:\n" +
                 "1) Human.\n" +
-                "2) RandomBot(Easy).\n" +
-                "3) Iterative Bot.\n" +
-                "4) Iterative Bot optimized.\n");
+                "2) RandomBot (Easy).\n" +
+                "3) HeuristicBot (Epsilon greedy)\n" +
+                "4) Iterative Bot.\n" +
+                "5) Iterative Bot with TT.\n" +
+                "6) Iterative Bot with TT and KM.\n" +
+                "7) Ordered Iterative Bot (TT, KM and HH).\n" +
+                "8) Principal Variation Search / NegaScout.\n" +
+                "9) Aspiration Search.\n" +
+                "10) Aspiration Search with Fractional Plies and Null Moves.\n" +
+                "11) Aspiration Search (Variable Depth = Fractional Plies, Null Move and Multi-Cut).\n" +
+                "12) Aspiration Search using Monte Carlo Evaluation to adjust time (Variable Depth).\n");
         }
 
         Player loadPlayer(int n, int id)
@@ -151,10 +173,31 @@ namespace World
             else if (n == 2)
                 return new RandomBot(id);
             else if (n == 3)
-                //return new xIterativeDeepening(id, 5000, true);
-                return new RandomBot(id);
-            else
+                return new HeuristicBot(id, .05f);
+            else if (n == 4)
+                return new IterativeDeepening(id, 5000, true);
+            else if (n == 5)
+                return new ID_TT(id, 5000, 20, true);
+            else if (n == 6)
+                return new ID_TT_KM(id, 5000, 20, true);
+            else if (n == 7)
+                return new OrderedID(id, 5000, 20, true);
+            else if (n == 8)
+                return new OrderedPVS(id, 5000, 20, true);
+            else if (n == 9)
+                return new OrderedAS(id, 5000, 20, 11, true);
+            else if (n == 10)
+                return new AS_FP_NL(id, 5000, 20, 11, 2, true);
+            else if (n == 11)
                 return new OptimizedAS(id, 5000, 20, 11, 2, 5, 10, true);
+            else if (n == 12)
+                return new OptimizedASAdjust(1, 10 * 60 * 1000, 10000, 10, .05f, 20, 11, 2, 5, 10, true);
+
+            else
+            {
+                Console.WriteLine("That one didn't exist. Try again!");
+                return new Human(id);
+            }
 
         }
 
@@ -254,7 +297,10 @@ namespace World
 
             while (inGame() && ply < maxPly)
             {
+                
                 process(print);
+
+                determineTimePerMove();
 
                 ply++;
             }
@@ -330,6 +376,62 @@ namespace World
 
             // Switch player
             switchPlayer();
+        }
+
+        private int determinePlies(int num, float epsilon)
+        { 
+            int ply = 0;
+            for (int i = 0; i < num; i++)
+            {
+                GameLoop temp_gl = new GameLoop(false);
+
+                temp_gl.setPlayer(1, new HeuristicBot(1, epsilon));
+                temp_gl.setPlayer(2, new HeuristicBot(2, epsilon));
+                temp_gl.setBoard(this.B);
+
+                while (temp_gl.inGame() && ply < maxPly)
+                {
+                    temp_gl.process(false);
+
+                    ply++;
+                }
+            }
+
+            return ply / num;
+        }
+
+        private void determineTimePerMove()
+        {
+            switchPlayer();
+
+            if (this.B.getCurrentPlayer().getAdjustTime() && inGame())
+            {
+                this.B.getCurrentPlayer().adjustMaxTime(determinePlies(this.B.getCurrentPlayer().numberOfEstimations, this.B.getCurrentPlayer().epsilon));
+            }
+
+            switchPlayer();
+        }
+
+        private void setBoard(Board b)
+        {
+            this.B = new Board();
+            this.B.setup();
+            
+            this.B.setCurrentPlayer(this.playerOne);
+            this.B.createInitialHash();
+
+            this.B.placeTown(b.getTownCoords()[0], false);
+            this.switchPlayer();
+            this.B.placeTown(b.getTownCoords()[1], false);
+            this.switchPlayer();
+
+            List<Move> allMoves = b.getMadeMoves();
+
+            for (int i = 0; i < allMoves.Count(); i++)
+            {
+                this.B.movePiece(allMoves[i], false, false, true, false);
+                this.switchPlayer();
+            }
         }
 
         int process(bool print, bool analyses)
