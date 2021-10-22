@@ -20,7 +20,7 @@ namespace World
         public GameLoop(bool centralLoop)
         {
             if (centralLoop)
-                setup();
+                setupGUI();
         }
 
         public Board getBoard()
@@ -48,17 +48,21 @@ namespace World
             //playerOne = new Human(1);
             //playerOne = new RandomBot(1);
             //playerOne = new OptimizedAS(1, 5000, 20, 11, 2, 5, 10, true);
-            playerOne = new OptimizedASAdjust(1, 5*60*1000, 10000, 5, .05f, 20, 11, 2, 5, 10, true);
+            playerOne = new OptimizedASAdjust(1, 5*60*1000, 1000, 5, .05f, 20, 11, 2, 5, 10, true);
+            //playerOne = new OptimizedASBH(1, 5000, 20, 11, 2, 3, 10, true);
             //playerOne = new OrderedPVS(1, 5000, 20, true);
             //playerOne = new ID_TT_KM(1, 5000, 20, true);
             //playerOne = new IterativeDeepening(1, 5000, true);
             //playerTwo = new AS_FP_NL(2, 5000, 20, 11, 2, true);
+            //playerTwo = new OptimizedASAdjust(2, 5 * 60 * 1000, 1000, 5, .05f, 20, 11, 2, 5, 10, true);
             //playerTwo = new OrderedAS(2, 5000, 20, 11, true);
-            //playerTwo = new OrderedID(2, 5000, 20, true);
+            //playerTwo = new OrderedID(2, 1000, 20, true);
+            //playerTwo = new Temp(2, 5000, true);
+            playerTwo = new Temp2(2, 5 * 60 * 1000, 1000, 5, .05f, 20, 11, 2, 5, 10, true);
             //playerTwo = new ID_TT(2, 5000, 20, true);
             //playerTwo = new HeuristicBot(2, 0f);
             //playerTwo = new Human(2);
-            playerTwo = new OptimizedAS(2, 1000, 20, 11, 2, 5, 10, true);
+            //playerTwo = new OptimizedAS(2, 1000, 20, 11, 2, 5, 10, true);
 
             // Set currentplayer
             B.setCurrentPlayer(playerOne);
@@ -191,7 +195,7 @@ namespace World
             else if (n == 11)
                 return new OptimizedAS(id, 5000, 20, 11, 2, 5, 10, true);
             else if (n == 12)
-                return new OptimizedASAdjust(1, 10 * 60 * 1000, 10000, 10, .05f, 20, 11, 2, 5, 10, true);
+                return new OptimizedASAdjust(id, 10 * 60 * 1000, 12000, 10, .05f, 20, 11, 2, 5, 10, true);
 
             else
             {
