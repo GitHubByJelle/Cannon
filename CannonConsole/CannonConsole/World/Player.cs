@@ -5495,7 +5495,7 @@ internal class IterativeDeepeningNoOrdering : Player
         if (depth == this.searchDepth)
             possibleMoves = this.moves;
         else
-            possibleMoves = B.getPossibleMoves(currentPlayerId);
+            possibleMoves = B.getPossibleMoves(currentPlayerId).cloneList();
 
         // Initialise for search
         int value = -this.evalBound - 1;

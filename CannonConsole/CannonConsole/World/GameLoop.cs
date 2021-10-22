@@ -143,7 +143,7 @@ namespace World
             {
                 playGamesPowerPoint(numOfGames, false, selectedPlayerIds[i,0], selectedPlayerIds[i,1]);
 
-                Console.WriteLine($"{i+1} of {selectedPlayerIds.GetLength(0)} completed.")
+                Console.WriteLine($"{i + 1} of {selectedPlayerIds.GetLength(0)} completed.");
             }
         }
 
