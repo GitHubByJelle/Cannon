@@ -5,3 +5,10 @@ C:\Users\JJ199\Documents\School UM\Master\Year 1\Period 1\Intelligent Search & G
 C:\Users\JJ199\Documents\School UM\Master\Year 1\Period 1\Intelligent Search & Games\Assignment\ConsoleApp\CannonConsole\CannonConsole\obj\Release\CannonConsole.csproj.CoreCompileInputs.cache
 C:\Users\JJ199\Documents\School UM\Master\Year 1\Period 1\Intelligent Search & Games\Assignment\ConsoleApp\CannonConsole\CannonConsole\obj\Release\CannonConsole.exe
 C:\Users\JJ199\Documents\School UM\Master\Year 1\Period 1\Intelligent Search & Games\Assignment\ConsoleApp\CannonConsole\CannonConsole\obj\Release\CannonConsole.pdb
+C:\Users\Jelle\Documents\School UM\ISG\ConsoleApp\CannonConsole\CannonConsole\bin\Release\CannonConsole.exe.config
+C:\Users\Jelle\Documents\School UM\ISG\ConsoleApp\CannonConsole\CannonConsole\bin\Release\CannonConsole.exe
+C:\Users\Jelle\Documents\School UM\ISG\ConsoleApp\CannonConsole\CannonConsole\bin\Release\CannonConsole.pdb
+C:\Users\Jelle\Documents\School UM\ISG\ConsoleApp\CannonConsole\CannonConsole\obj\Release\CannonConsole.csproj.AssemblyReference.cache
+C:\Users\Jelle\Documents\School UM\ISG\ConsoleApp\CannonConsole\CannonConsole\obj\Release\CannonConsole.csproj.CoreCompileInputs.cache
+C:\Users\Jelle\Documents\School UM\ISG\ConsoleApp\CannonConsole\CannonConsole\obj\Release\CannonConsole.exe
+C:\Users\Jelle\Documents\School UM\ISG\ConsoleApp\CannonConsole\CannonConsole\obj\Release\CannonConsole.pdb

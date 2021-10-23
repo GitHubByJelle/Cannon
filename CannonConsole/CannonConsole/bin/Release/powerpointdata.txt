@@ -1,0 +1,13 @@
+IterativeDeepeningNoOrdering vs IterativeDeepeningNoOrdering: 0 - 6 - 4
+IterativeDeepeningNoOrdering vs IterativeDeepening: 0 - 0 - 10
+IterativeDeepeningNoOrdering vs ID_TT: 0 - 2 - 8
+IterativeDeepeningNoOrdering vs ID_TT_KM: 0 - 2 - 8
+IterativeDeepeningNoOrdering vs OrderedID: 0 - 2 - 8
+OrderedID vs OrderedID: 0 - 7 - 3
+OrderedID vs OrderedAS: 0 - 4 - 6
+OrderedID vs OrderedPVS: 0 - 10 - 0
+OrderedAS vs OrderedPVS: 0 - 10 - 0
+OrderedPVS vs OrderedAS: 0 - 0 - 10
+OrderedAS vs OrderedAS: 0 - 7 - 3
+OrderedAS vs AS_FP_NL: 0 - 3 - 7
+OrderedAS vs OptimizedAS: 0 - 6 - 4

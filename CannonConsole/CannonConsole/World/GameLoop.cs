@@ -76,7 +76,9 @@ namespace World
             B.setup();
 
             playerOne = loadPlayer(playerOneIdSelection, 1, 1000);
-            playerTwo = loadPlayer(playerOneIdSelection, 2, 1000);
+            playerTwo = loadPlayer(playerTwoIdSelection, 2, 1000);
+
+            Console.WriteLine($"Now: {playerOne.GetType().Name} vs {playerTwo.GetType().Name}.");
 
             // Set currentplayer
             B.setCurrentPlayer(playerOne);
@@ -345,10 +347,12 @@ namespace World
 
                 // Fill in win
                 wins[winner]++;
+
+                Console.WriteLine($"Game {num} of {numberOfGames} completed");
             }
 
             // Add win to file
-            File.AppendAllText("powerpointdata.txt", $"{playerOne.GetType().Name} vs {playerOne.GetType().Name}: {wins[0]} - {wins[1]} - {wins[2]}\n");
+            File.AppendAllText("powerpointdata.txt", $"{playerOne.GetType().Name} vs {playerTwo.GetType().Name}: {wins[0]} - {wins[1]} - {wins[2]}\n");
         }
 
         public void playGames(int numberOfGames, bool print, bool analyses)
