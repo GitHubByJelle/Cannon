@@ -1,11 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace World
 {
@@ -20,7 +16,7 @@ namespace World
         public GameLoop(bool centralLoop)
         {
             if (centralLoop)
-                setup();
+                setupGUI();
         }
 
         public Board getBoard()
@@ -127,6 +123,7 @@ namespace World
                 "Welcome!\n\n" +
                 "Press Enter to start a new game, or type 'reload' to get the board from last game.\n");
             string outp = Console.ReadLine();
+            Console.WriteLine();
 
             if (outp == "reload")
                 return true;
@@ -207,7 +204,9 @@ namespace World
                 "10) Aspiration Search.\n" +
                 "11) Aspiration Search with Fractional Plies and Null Moves.\n" +
                 "12) Aspiration Search (Variable Depth = Fractional Plies, Null Move and Multi-Cut).\n" +
-                "13) Aspiration Search using Monte Carlo Evaluation to adjust time (Variable Depth).\n");
+                "13) Aspiration Search using Monte Carlo Evaluation to adjust time (Variable Depth).\n" +
+                "14) Aspiration Search (Variable Depth, replaced HH with Relative HH)\n" +
+                "15) 'Optimal' bot (only 'optimal' improvements added)");
         }
 
         Player loadPlayer(int n, int id)
@@ -238,6 +237,10 @@ namespace World
                 return new OptimizedAS(id, 5000, 20, 11, 2, 5, 10, true);
             else if (n == 13)
                 return new OptimizedASAdjust(id, 10 * 60 * 1000, 12000, 10, .05f, 20, 11, 2, 5, 10, true);
+            else if (n == 14)
+                return new OptimizedASBH(id, 5000, 20, 11, 2, 5, 10, true);
+            else if (n == 15)
+                return new OptimalBot(id, 5000, 20, 2, true);
 
             else
             {

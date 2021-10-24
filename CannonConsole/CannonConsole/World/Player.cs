@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -7,6 +6,7 @@ using World;
 using TT;
 using System.Text.RegularExpressions;
 
+/// Not used in main code, slowed down the code (still kept in)
 public struct features
 {
     public int MaterialPiece { get; set; }
@@ -30,7 +30,7 @@ public struct features
     }
 }
 
-
+// Default Player options
 public class Player
 {
     public int playerId;
@@ -842,11 +842,6 @@ public class Player
         if (B.getTownCoords()[1] != default(Coord))
             count[1]++;
 
-        //if (count[0] - count[1] != 0 && B.getPiecesCoords().Count() < 30)
-        //{
-        //    int test = 0;
-        //}
-
         if (this.playerId == 1)
             return count;
         else
@@ -926,6 +921,7 @@ public class Player
     }
 }
 
+///  Players
 internal class Human : Player
 {
     Regex moveFormat = new Regex("([A-Z][0-9]{1,2}[x|-][A-Z][0-9]{1,2})|([x][A-Z][0-9]{1,2})");
@@ -1119,6 +1115,7 @@ internal class Human : Player
     }
 }
 
+/// Bots
 internal class RandomBot : Player
 {
     static Random rnd = new Random();
@@ -1217,7 +1214,7 @@ internal class HeuristicBot : Player
     }
 }
 
-/// Attempt 4
+/// Attempt 4 (of creating bots)
 // Only use optimal improvements (Iterative Deepening, TT, Knowledge, Fractional Plies, Null Move) 
 internal class OptimalBot : Player
 {
@@ -2137,7 +2134,7 @@ internal class OptimizedASAdjust : Player
     }
 }
 
-// Aspirations search with all optimizations (Iterative Deepening, TT, KM, Knowledge, HH, Fractional Plies, Null Move, MultiCut) 
+// Aspirations search with all optimizations (Variable depth, replaced HH with Relative HH)
 internal class OptimizedASBH : Player
 {
     // Initiliaze everything needed

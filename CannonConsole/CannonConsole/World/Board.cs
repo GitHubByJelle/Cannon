@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TT;
 using World;
 
@@ -1023,9 +1021,6 @@ public class Board
         {
             inControlUnreachableOpponent += opponentControl[this.unreachableCoords.getPlayer(opponentId)[i].x, this.unreachableCoords.getPlayer(opponentId)[i].y];
         }
-
-        // TODO add to output
-        // CurrentControl - inControlUnreachableCurrent
 
         return new int[] { currentControl.FullSum(), currentInDangerP.FullSum(), currentInDangerS.FullSum(), currentInDangerC.FullSum(), townInDanger[0],
             currentControl.FullSum() - inControlUnreachableCurrent, aroundTownCurrent,
