@@ -56,9 +56,7 @@ namespace World
             //playerTwo = new AS_FP_NL(2, 5000, 20, 11, 2, true);
             //playerTwo = new OptimizedASAdjust(2, 5 * 60 * 1000, 1000, 5, .05f, 20, 11, 2, 5, 10, true);
             //playerTwo = new OrderedAS(2, 5000, 20, 11, true);
-            //playerTwo = new OrderedID(2, 1000, 20, true);
-            //playerTwo = new Temp(2, 5000, true);
-            playerTwo = new Temp2(2, 5 * 60 * 1000, 1000, 5, .05f, 20, 11, 2, 5, 10, true);
+            playerTwo = new OrderedID(2, 1000, 20, true);
             //playerTwo = new ID_TT(2, 5000, 20, true);
             //playerTwo = new HeuristicBot(2, 0f);
             //playerTwo = new Human(2);
@@ -69,14 +67,14 @@ namespace World
             B.createInitialHash();
         }
 
-        public void setupPlayer(int playerOneIdSelection, int playerTwoIdSelection)
+        public void setupPlayer(int playerOneIdSelection, int playerTwoIdSelection, int timePerMoveMs, bool printSteps)
         {
             // Setup board
             B = new Board();
             B.setup();
 
-            playerOne = loadPlayer(playerOneIdSelection, 1, 1000);
-            playerTwo = loadPlayer(playerTwoIdSelection, 2, 1000);
+            playerOne = loadPlayer(playerOneIdSelection, 1, timePerMoveMs, printSteps);
+            playerTwo = loadPlayer(playerTwoIdSelection, 2, timePerMoveMs, printSteps);
 
             Console.WriteLine($"Now: {playerOne.GetType().Name} vs {playerTwo.GetType().Name}.");
 
@@ -136,16 +134,28 @@ namespace World
                 return false;
         }
 
-        public void collectPowerPointData(int numOfGames, int[,] selectedPlayerIds)
+        public void collectPowerPointData(int numOfGames, int timePerMoveMs, int[,] selectedPlayerIds)
         {
             // Create file for saving the data
             File.Create("powerpointdata.txt").Dispose();
 
             for (int i = 0; i < selectedPlayerIds.GetLength(0); i++)
             {
-                playGamesPowerPoint(numOfGames, false, selectedPlayerIds[i,0], selectedPlayerIds[i,1]);
+                playGamesPowerPoint(numOfGames, false, selectedPlayerIds[i,0], selectedPlayerIds[i,1], timePerMoveMs);
 
                 Console.WriteLine($"{i + 1} of {selectedPlayerIds.GetLength(0)} completed.");
+            }
+        }
+
+        public void collectPowerPointTimes(int timePerMoveMs, int[] selectedPlayerIds)
+        {
+            // For every selected player
+            for (int i = 0; i < selectedPlayerIds.GetLength(0); i++)
+            {
+                // Look at calculation time
+                playGamesPowerPointTime(false, selectedPlayerIds[i], timePerMoveMs);
+
+                Console.WriteLine($"{i + 1} of {selectedPlayerIds.GetLength(0)} completed.\n\n");
             }
         }
 
@@ -237,7 +247,7 @@ namespace World
 
         }
 
-        Player loadPlayer(int n, int id, int timeSearch)
+        Player loadPlayer(int n, int id, int timeSearch, bool printSteps)
         {
             if (n == 1)
                 return new Human(id);
@@ -246,25 +256,29 @@ namespace World
             else if (n == 3)
                 return new HeuristicBot(id, .05f);
             else if (n == 4)
-                return new IterativeDeepeningNoOrdering(id, timeSearch, false);
+                return new IterativeDeepeningNoOrdering(id, timeSearch, printSteps);
             else if (n == 5)
-                return new IterativeDeepening(id, timeSearch, false);
+                return new IterativeDeepening(id, timeSearch, printSteps);
             else if (n == 6)
-                return new ID_TT(id, timeSearch, 20, false);
+                return new ID_TT(id, timeSearch, 20, printSteps);
             else if (n == 7)
-                return new ID_TT_KM(id, timeSearch, 20, false);
+                return new ID_TT_KM(id, timeSearch, 20, printSteps);
             else if (n == 8)
-                return new OrderedID(id, timeSearch, 20, false);
+                return new OrderedID(id, timeSearch, 20, printSteps);
             else if (n == 9)
-                return new OrderedPVS(id, timeSearch, 20, false);
+                return new OrderedPVS(id, timeSearch, 20, printSteps);
             else if (n == 10)
-                return new OrderedAS(id, timeSearch, 20, 11, false);
+                return new OrderedAS(id, timeSearch, 20, 11, printSteps);
             else if (n == 11)
-                return new AS_FP_NL(id, timeSearch, 20, 11, 2, false);
+                return new AS_FP_NL(id, timeSearch, 20, 11, 2, printSteps);
             else if (n == 12)
-                return new OptimizedAS(id, timeSearch, 20, 11, 2, 5, 10, false);
+                return new OptimizedAS(id, timeSearch, 20, 11, 2, 5, 10, printSteps);
             else if (n == 13)
-                return new OptimizedASAdjust(id, 10 * 60 * 1000, timeSearch, 10, .05f, 20, 11, 2, 5, 10, false);
+                return new OptimizedASAdjust(id, 10 * 60 * 1000, timeSearch, 10, .05f, 20, 11, 2, 5, 10, printSteps);
+            else if (n == 14)
+                return new OptimizedASBH(id, timeSearch, 20, 11, 2, 5, 10, printSteps);
+            else if (n == 15)
+                return new OptimalBot(id, timeSearch, 20, 2, printSteps);
 
             else
             {
@@ -334,13 +348,13 @@ namespace World
             return wins;
         }
 
-        public void playGamesPowerPoint(int numberOfGames, bool print, int playerOneSelection, int playerTwoSelection)
+        public void playGamesPowerPoint(int numberOfGames, bool print, int playerOneSelection, int playerTwoSelection, int timePerMoveMs)
         {
             int[] wins = new int[3];
             for (int num = 0; num < numberOfGames; num++)
             {
                 // Set up the board 
-                setupPlayer(playerOneSelection, playerTwoSelection);
+                setupPlayer(playerOneSelection, playerTwoSelection, timePerMoveMs, false);
 
                 // Play a game
                 int winner = playGame(print);
@@ -348,11 +362,37 @@ namespace World
                 // Fill in win
                 wins[winner]++;
 
-                Console.WriteLine($"Game {num} of {numberOfGames} completed");
+                Console.WriteLine($"Game {num+1} of {numberOfGames} completed");
             }
 
             // Add win to file
             File.AppendAllText("powerpointdata.txt", $"{playerOne.GetType().Name} vs {playerTwo.GetType().Name}: {wins[0]} - {wins[1]} - {wins[2]}\n");
+        }
+
+        public void playGamesPowerPointTime(bool print, int playerOneSelection, int timePerMoveMs)
+        {
+            // Set up the board 
+            setupPlayer(playerOneSelection, 2, timePerMoveMs, true);
+
+            // Update which player we are looking at
+            Console.WriteLine($"{playerOne.GetType().Name}: ");
+
+            // Play a game
+            playGameTime();
+        }
+
+        public void playGameTime()
+        {
+            // Place towns
+            B.placeTown(new Coord(1, 0), false);
+            switchPlayer();
+            B.placeTown(new Coord(8, 9), false);
+            switchPlayer();
+
+            B.updateCannons();
+
+            // Determine time needed (only perform first step)
+            process(false);
         }
 
         public void playGames(int numberOfGames, bool print, bool analyses)

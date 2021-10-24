@@ -30,9 +30,14 @@ namespace CannonConsole
             //Console.ReadLine();
 
             GameLoop GL = new GameLoop(true);
-            int[,] selections = new int[,] { { 4, 4}, { 4, 5 }, { 4, 6 }, { 4, 7 }, { 4, 8 },
-            { 8,8 }, { 8,10}, { 8, 9 }, { 10, 9}, { 9, 10}, { 10, 10}, { 10, 11}, { 10, 12} };
-            GL.collectPowerPointData(10, selections);
+            int[,] selections = new int[,] { { 12, 14 }, {14, 12 }, {12, 15 }, {15, 12 } };
+            GL.collectPowerPointData(10, 1000, selections);
+
+            //GameLoop GL = new GameLoop(true);
+            //int[] selections = new int[] { 15 };
+            //GL.collectPowerPointTimes(3 * 60 * 1000, selections);
+
+            //Console.ReadLine();
 
             //GameLoop GL = new GameLoop(true);
 
