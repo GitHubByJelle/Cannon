@@ -1,4 +1,0 @@
-OptimizedAS vs OptimizedASBH: 0 - 4 - 6
-OptimizedASBH vs OptimizedAS: 0 - 7 - 3
-OptimizedAS vs OptimalBot: 0 - 4 - 6
-OptimalBot vs OptimizedAS: 0 - 6 - 4
