@@ -195,7 +195,7 @@ namespace World
                 "1) Human.\n" +
                 "2) RandomBot (Easy).\n" +
                 "3) HeuristicBot (Epsilon greedy)\n" +
-                "4) Iterative Bot (no ordering)" +
+                "4) Iterative Bot (no ordering)\n" +
                 "5) Iterative Bot (ordering on knowledge).\n" +
                 "6) Iterative Bot with TT.\n" +
                 "7) Iterative Bot with TT and KM.\n" +
